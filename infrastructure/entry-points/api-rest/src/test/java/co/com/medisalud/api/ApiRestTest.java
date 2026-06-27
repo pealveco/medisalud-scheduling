@@ -6,8 +6,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.web.servlet.client.RestTestClient;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(classes = TestConfig.class)
 @ActiveProfiles("test")
@@ -16,15 +22,15 @@ class ApiRestTest {
     @Autowired
     private WebApplicationContext context;
 
-    private RestTestClient client;
+    private MockMvc client;
 
     @BeforeEach
     void setup() {
-        client = RestTestClient.bindToApplicationContext(context).build();
+        client = MockMvcBuilders.webAppContextSetup(context).build();
     }
 
     @Test
-    void shouldCreateDoctorWhenPayloadIsValid() {
+    void shouldCreateDoctorWhenPayloadIsValid() throws Exception {
         String request = """
                 {
                   "fullName": "Laura Gomez",
@@ -34,23 +40,20 @@ class ApiRestTest {
                 }
                 """;
 
-        client.post()
-                .uri("/api/doctors")
+        client.perform(post("/api/doctors")
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON)
-                .body(request)
-                .exchange()
-                .expectStatus().isCreated()
-                .expectBody()
-                .jsonPath("$.id").exists()
-                .jsonPath("$.fullName").isEqualTo("Laura Gomez")
-                .jsonPath("$.specialty").isEqualTo("Cardiology")
-                .jsonPath("$.phone").isEqualTo("3001234567")
-                .jsonPath("$.email").isEqualTo("laura.gomez@medisalud.com");
+                .content(request))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").exists())
+                .andExpect(jsonPath("$.fullName").value("Laura Gomez"))
+                .andExpect(jsonPath("$.specialty").value("Cardiology"))
+                .andExpect(jsonPath("$.phone").value("3001234567"))
+                .andExpect(jsonPath("$.email").value("laura.gomez@medisalud.com"));
     }
 
     @Test
-    void shouldRejectDoctorRequestWhenFullNameIsTooShort() {
+    void shouldRejectDoctorRequestWhenFullNameIsTooShort() throws Exception {
         String request = """
                 {
                   "fullName": "Al",
@@ -64,7 +67,7 @@ class ApiRestTest {
     }
 
     @Test
-    void shouldRejectDoctorRequestWhenFullNameIsTooLong() {
+    void shouldRejectDoctorRequestWhenFullNameIsTooLong() throws Exception {
         String request = """
                 {
                   "fullName": "%s",
@@ -78,7 +81,7 @@ class ApiRestTest {
     }
 
     @Test
-    void shouldRejectDoctorRequestWhenSpecialtyIsBlank() {
+    void shouldRejectDoctorRequestWhenSpecialtyIsBlank() throws Exception {
         String request = """
                 {
                   "fullName": "Laura Gomez",
@@ -92,7 +95,7 @@ class ApiRestTest {
     }
 
     @Test
-    void shouldRejectDoctorRequestWhenEmailIsInvalid() {
+    void shouldRejectDoctorRequestWhenEmailIsInvalid() throws Exception {
         String request = """
                 {
                   "fullName": "Laura Gomez",
@@ -106,7 +109,7 @@ class ApiRestTest {
     }
 
     @Test
-    void shouldRejectDoctorRequestWhenPhoneHasLessThanSevenDigits() {
+    void shouldRejectDoctorRequestWhenPhoneHasLessThanSevenDigits() throws Exception {
         String request = """
                 {
                   "fullName": "Laura Gomez",
@@ -120,24 +123,19 @@ class ApiRestTest {
     }
 
     @Test
-    void shouldReturnNotFoundForInvalidPath() {
-        client.get()
-                .uri("/api/invalid")
-                .accept(MediaType.APPLICATION_JSON)
-                .exchange()
-                .expectStatus().isNotFound();
+    void shouldReturnNotFoundForInvalidPath() throws Exception {
+        client.perform(get("/api/invalid")
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound());
     }
 
-    private void assertBadRequestWithFieldError(String request, String fieldName) {
-        client.post()
-                .uri("/api/doctors")
+    private void assertBadRequestWithFieldError(String request, String fieldName) throws Exception {
+        client.perform(post("/api/doctors")
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON)
-                .body(request)
-                .exchange()
-                .expectStatus().isBadRequest()
-                .expectBody()
-                .jsonPath("$.status").isEqualTo(400)
-                .jsonPath("$.errors[?(@.field == '%s')]".formatted(fieldName)).exists();
+                .content(request))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.errors[?(@.field == '%s')]".formatted(fieldName)).exists());
     }
 }

@@ -1,47 +1,255 @@
-# Proyecto Base Implementando Clean Architecture
+# MediSalud Scheduling
 
-## Antes de Iniciar
+API REST para agendamiento de citas médicas. Proyecto construido como prueba técnica usando Java 21, Spring Boot y Clean Architecture con el scaffold de Bancolombia.
 
-Empezaremos por explicar los diferentes componentes del proyectos y partiremos de los componentes externos, continuando con los componentes core de negocio (dominio) y por último el inicio y configuración de la aplicación.
+El objetivo del MVP es priorizar arquitectura clara, reglas de negocio testeables y separación estricta entre dominio, casos de uso, entry points y adapters.
 
-Lee el artículo [Clean Architecture — Aislando los detalles](https://medium.com/bancolombia-tech/clean-architecture-aislando-los-detalles-4f9530f35d7a)
+## Estado Actual
 
-# Arquitectura
+Implementado:
 
-![Clean Architecture](https://miro.medium.com/max/1400/1*ZdlHz8B0-qu9Y-QO3AXR_w.png)
+- Modelos de dominio puros: `Doctor`, `Patient`, `Appointment`, `Penalty` y `AppointmentStatus`.
+- DTOs explícitos de request/response para la API.
+- `POST /api/doctors` funcional con persistencia JPA.
+- Validaciones declarativas para registro de médicos.
+- Respuestas de validación con `ProblemDetail` y campo `errors`.
+- PostgreSQL local con Docker Compose para perfil `local`.
+- H2 en memoria para perfil `test`.
 
-## Domain
+Pendiente:
 
-Es el módulo más interno de la arquitectura, pertenece a la capa del dominio y encapsula la lógica y reglas del negocio mediante modelos y entidades del dominio.
+- Registro de pacientes.
+- Reserva, disponibilidad, cancelación, listado y reprogramación de citas.
+- Handler completo para excepciones de dominio.
+- README final con todos los endpoints cuando estén implementados.
 
-## Usecases
+## Stack
 
-Este módulo gradle perteneciente a la capa del dominio, implementa los casos de uso del sistema, define lógica de aplicación y reacciona a las invocaciones desde el módulo de entry points, orquestando los flujos hacia el módulo de entities.
+- Java 21
+- Spring Boot 3.5.16
+- Gradle
+- JPA/Hibernate
+- PostgreSQL para runtime local
+- H2 para tests
+- Docker Compose
+- Clean Architecture Scaffold de Bancolombia
 
-## Infrastructure
+## Arquitectura
 
-### Helpers
+El proyecto respeta la estructura generada por el scaffold Clean Architecture de Bancolombia:
 
-En el apartado de helpers tendremos utilidades generales para los Driven Adapters y Entry Points.
+```text
+domain/model                    -> modelos de dominio y gateways
+domain/usecase                  -> casos de uso
+infrastructure/entry-points     -> API REST, DTOs, handlers
+infrastructure/driven-adapters  -> persistencia JPA
+applications/app-service        -> aplicación Spring Boot y wiring
+```
 
-Estas utilidades no están arraigadas a objetos concretos, se realiza el uso de generics para modelar comportamientos
-genéricos de los diferentes objetos de persistencia que puedan existir, este tipo de implementaciones se realizan
-basadas en el patrón de diseño [Unit of Work y Repository](https://medium.com/@krzychukosobudzki/repository-design-pattern-bc490b256006)
+Reglas principales:
 
-Estas clases no puede existir solas y debe heredarse su compartimiento en los **Driven Adapters**
+- El dominio no tiene anotaciones JPA ni dependencias de Spring.
+- Los modelos de dominio no se exponen directamente en la API.
+- Los entry points usan DTOs explícitos.
+- La persistencia se implementa en el driven adapter JPA.
+- Los use cases se generan con el scaffold y se registran mediante `UseCasesConfig`.
 
-### Driven Adapters
+## Perfiles Spring
 
-Los driven adapter representan implementaciones externas a nuestro sistema, como lo son conexiones a servicios rest,
-soap, bases de datos, lectura de archivos planos, y en concreto cualquier origen y fuente de datos con la que debamos
-interactuar.
+Los perfiles se activan con `SPRING_PROFILES_ACTIVE`.
 
-### Entry Points
+| Perfil | Archivo | Uso | Base de datos |
+| --- | --- | --- | --- |
+| default/prod | `application.yaml` | Configuración base con variables de entorno | PostgreSQL |
+| local | `application-local.yaml` | Desarrollo local con Docker Compose | PostgreSQL |
+| test | `application-test.yaml` | Tests automatizados | H2 en memoria |
 
-Los entry points representan los puntos de entrada de la aplicación o el inicio de los flujos de negocio.
+Spring siempre carga `application.yaml`. Si activas `local`, también carga `application-local.yaml`. Si activas `test`, también carga `application-test.yaml`.
 
-## Application
+## Variables de Entorno
 
-Este módulo es el más externo de la arquitectura, es el encargado de ensamblar los distintos módulos, resolver las dependencias y crear los beans de los casos de use (UseCases) de forma automática, inyectando en éstos instancias concretas de las dependencias declaradas. Además inicia la aplicación (es el único módulo del proyecto donde encontraremos la función “public static void main(String[] args)”.
+El archivo versionado de referencia para desarrollo local es:
 
-**Los beans de los casos de uso se disponibilizan automaticamente gracias a un '@ComponentScan' ubicado en esta capa.**
+```text
+medisalud.env.local.example
+```
+
+Cada desarrollador debe crear su archivo local real:
+
+```bash
+cp medisalud.env.local.example medisalud.env.local
+```
+
+`medisalud.env.local` no se versiona. Puede contener credenciales o valores propios de la máquina.
+
+Variables relevantes:
+
+```env
+SPRING_PROFILES_ACTIVE=local
+DB_URL=jdbc:postgresql://localhost:5432/medisalud
+DB_NAME=medisalud
+DB_PORT=5432
+DB_USER=medisalud
+DB_PASS=medisalud
+JPA_DDL_AUTO=update
+```
+
+## PostgreSQL Local
+
+Levantar PostgreSQL:
+
+```bash
+docker compose --env-file medisalud.env.local up -d postgres
+```
+
+Validar el estado:
+
+```bash
+docker compose --env-file medisalud.env.local ps
+docker exec medisalud-postgres pg_isready -U medisalud -d medisalud
+```
+
+Detener PostgreSQL conservando datos:
+
+```bash
+docker compose --env-file medisalud.env.local down
+```
+
+Detener PostgreSQL eliminando también el volumen de datos:
+
+```bash
+docker compose --env-file medisalud.env.local down -v
+```
+
+## Ejecutar la Aplicación
+
+Con PostgreSQL local ya levantado:
+
+```bash
+set -a
+source medisalud.env.local
+set +a
+./gradlew :app-service:bootRun
+```
+
+En IntelliJ, carga `medisalud.env.local` en la Run Configuration o define sus variables manualmente. Debe quedar activo:
+
+```env
+SPRING_PROFILES_ACTIVE=local
+```
+
+La API queda disponible en:
+
+```text
+http://localhost:8080
+```
+
+## Ejecutar Tests
+
+```bash
+./gradlew test
+```
+
+Los tests Spring que requieren perfil usan `@ActiveProfiles("test")`, por lo que se conectan a H2 en memoria.
+
+También puedes validar estructura del scaffold:
+
+```bash
+./gradlew validateStructure
+```
+
+## Endpoint Implementado
+
+### Registrar Médico
+
+```http
+POST /api/doctors
+```
+
+Request:
+
+```json
+{
+  "fullName": "Laura Gomez",
+  "specialty": "Cardiology",
+  "phone": "3001234567",
+  "email": "laura.gomez@medisalud.com"
+}
+```
+
+Response `201`:
+
+```json
+{
+  "id": "generated-uuid",
+  "fullName": "Laura Gomez",
+  "specialty": "Cardiology",
+  "phone": "3001234567",
+  "email": "laura.gomez@medisalud.com"
+}
+```
+
+Campos:
+
+- `fullName`: obligatorio, 3 a 100 caracteres.
+- `specialty`: obligatorio.
+- `phone`: opcional, mínimo 7 dígitos si se envía.
+- `email`: opcional, formato email si se envía.
+
+Ejemplo con curl:
+
+```bash
+curl -i -X POST http://localhost:8080/api/doctors \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fullName": "Laura Gomez",
+    "specialty": "Cardiology",
+    "phone": "3001234567",
+    "email": "laura.gomez@medisalud.com"
+  }'
+```
+
+## Errores de Validación
+
+Las validaciones de entrada se manejan con Bean Validation en los request DTOs y un handler global con `ProblemDetail`.
+
+Ejemplo `400`:
+
+```json
+{
+  "type": "https://medisalud.com/errors/validation",
+  "title": "Invalid request",
+  "status": 400,
+  "detail": "Request validation failed",
+  "instance": "/api/doctors",
+  "errors": [
+    {
+      "field": "fullName",
+      "message": "size must be between 3 and 100"
+    }
+  ]
+}
+```
+
+## Comandos del Scaffold
+
+Este proyecto fue generado con el scaffold Clean Architecture de Bancolombia. Para módulos generados por el scaffold se deben usar sus tareas Gradle.
+
+Comandos usados hasta ahora:
+
+```bash
+./gradlew gm --name=Doctor
+./gradlew gm --name=Patient
+./gradlew gm --name=Appointment
+./gradlew gm --name=Penalty
+./gradlew guc --name=CreateDoctor
+./gradlew gep --type=restmvc
+./gradlew gda --type=jpa
+```
+
+## Notas de Desarrollo
+
+- `SPEC.md` es una nota local de trabajo y está ignorada por Git.
+- Los archivos `medisalud.env.*` reales están ignorados por Git.
+- `docker-compose.yml` y `medisalud.env.local.example` sí se versionan.
+- Cada cambio importante de ejecución, perfiles, endpoints, arquitectura o decisiones técnicas debe reflejarse en este README.

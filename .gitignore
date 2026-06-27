@@ -342,5 +342,11 @@ SPEC.md
 
 # Local environment variables
 .env
-.env.*
+*.env.local
+*.env.test
+*.env.production
+medisalud.env.*
+medisalud.production
+medisalud.test
 !.env.example
+!medisalud.env.local.example
