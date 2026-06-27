@@ -63,7 +63,7 @@ class ApiRestTest {
                 }
                 """;
 
-        assertBadRequestWithFieldError(request, "fullName");
+        assertBadRequestWithFieldError("/api/doctors", request, "fullName");
     }
 
     @Test
@@ -77,7 +77,7 @@ class ApiRestTest {
                 }
                 """.formatted("A".repeat(101));
 
-        assertBadRequestWithFieldError(request, "fullName");
+        assertBadRequestWithFieldError("/api/doctors", request, "fullName");
     }
 
     @Test
@@ -91,7 +91,7 @@ class ApiRestTest {
                 }
                 """;
 
-        assertBadRequestWithFieldError(request, "specialty");
+        assertBadRequestWithFieldError("/api/doctors", request, "specialty");
     }
 
     @Test
@@ -105,7 +105,7 @@ class ApiRestTest {
                 }
                 """;
 
-        assertBadRequestWithFieldError(request, "email");
+        assertBadRequestWithFieldError("/api/doctors", request, "email");
     }
 
     @Test
@@ -119,7 +119,115 @@ class ApiRestTest {
                 }
                 """;
 
-        assertBadRequestWithFieldError(request, "phone");
+        assertBadRequestWithFieldError("/api/doctors", request, "phone");
+    }
+
+    @Test
+    void shouldCreatePatientWhenPayloadIsValid() throws Exception {
+        String request = """
+                {
+                  "fullName": "Mateo Perez",
+                  "documentId": "PATIENT1001",
+                  "phone": "3107654321",
+                  "email": "mateo.perez@medisalud.com",
+                  "birthDate": "1990-05-12"
+                }
+                """;
+
+        client.perform(post("/api/patients")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(request))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").exists())
+                .andExpect(jsonPath("$.fullName").value("Mateo Perez"))
+                .andExpect(jsonPath("$.documentId").value("PATIENT1001"))
+                .andExpect(jsonPath("$.phone").value("3107654321"))
+                .andExpect(jsonPath("$.email").value("mateo.perez@medisalud.com"))
+                .andExpect(jsonPath("$.birthDate").value("1990-05-12"));
+    }
+
+    @Test
+    void shouldRejectPatientWhenDocumentIdAlreadyExists() throws Exception {
+        String request = """
+                {
+                  "fullName": "Sofia Torres",
+                  "documentId": "PATIENT2001",
+                  "phone": "3207654321",
+                  "email": "sofia.torres@medisalud.com"
+                }
+                """;
+
+        client.perform(post("/api/patients")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(request))
+                .andExpect(status().isCreated());
+
+        client.perform(post("/api/patients")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(request))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.type").value("https://medisalud.com/errors/patient-document-already-exists"));
+    }
+
+    @Test
+    void shouldRejectPatientRequestWhenDocumentIdIsTooShort() throws Exception {
+        String request = """
+                {
+                  "fullName": "Mateo Perez",
+                  "documentId": "123456",
+                  "phone": "3107654321",
+                  "email": "mateo.perez@medisalud.com"
+                }
+                """;
+
+        assertBadRequestWithFieldError("/api/patients", request, "documentId");
+    }
+
+    @Test
+    void shouldRejectPatientRequestWhenEmailOrPhoneAreMissing() throws Exception {
+        String request = """
+                {
+                  "fullName": "Mateo Perez",
+                  "documentId": "PATIENT3001"
+                }
+                """;
+
+        assertBadRequestWithFieldError("/api/patients", request, "email");
+        assertBadRequestWithFieldError("/api/patients", request, "phone");
+    }
+
+    @Test
+    void shouldRejectPatientRequestWhenEmailOrPhoneAreInvalid() throws Exception {
+        String request = """
+                {
+                  "fullName": "Mateo Perez",
+                  "documentId": "PATIENT4001",
+                  "phone": "123456",
+                  "email": "invalid-email"
+                }
+                """;
+
+        assertBadRequestWithFieldError("/api/patients", request, "email");
+        assertBadRequestWithFieldError("/api/patients", request, "phone");
+    }
+
+    @Test
+    void shouldRejectPatientRequestWhenBirthDateIsFuture() throws Exception {
+        String request = """
+                {
+                  "fullName": "Mateo Perez",
+                  "documentId": "PATIENT5001",
+                  "phone": "3107654321",
+                  "email": "mateo.perez@medisalud.com",
+                  "birthDate": "2999-01-01"
+                }
+                """;
+
+        assertBadRequestWithFieldError("/api/patients", request, "birthDate");
     }
 
     @Test
@@ -129,8 +237,8 @@ class ApiRestTest {
                 .andExpect(status().isNotFound());
     }
 
-    private void assertBadRequestWithFieldError(String request, String fieldName) throws Exception {
-        client.perform(post("/api/doctors")
+    private void assertBadRequestWithFieldError(String path, String request, String fieldName) throws Exception {
+        client.perform(post(path)
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON)
                 .content(request))

@@ -27,7 +27,7 @@ public record CreatePatientRequest(
         String documentId,
 
         @NotBlank
-        @Pattern(regexp = "^\\d{7,}$", message = "must contain at least 7 digits")
+        @Pattern(regexp = "^\\d{7,}$", message = "debe contener al menos 7 dígitos")
         String phone,
 
         @NotBlank

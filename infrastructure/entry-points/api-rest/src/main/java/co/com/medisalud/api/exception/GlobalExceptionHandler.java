@@ -1,5 +1,6 @@
 package co.com.medisalud.api.exception;
 
+import co.com.medisalud.model.patient.exceptions.PatientDocumentAlreadyExistsException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -18,9 +19,10 @@ import java.util.List;
 public class GlobalExceptionHandler {
 
     private static final URI VALIDATION_ERROR_TYPE = URI.create("https://medisalud.com/errors/validation");
+    private static final URI PATIENT_DOCUMENT_CONFLICT_TYPE = URI.create("https://medisalud.com/errors/patient-document-already-exists");
 
     /**
-     * Converts request body validation failures to a problem detail response.
+     * Converts request body validation failures to a problem detail resRegistro de pacientesponse.
      *
      * @param exception validation exception raised by Spring MVC
      * @param request current web request
@@ -36,6 +38,24 @@ public class GlobalExceptionHandler {
         problemDetail.setTitle("Invalid request");
         problemDetail.setInstance(resolveInstance(request));
         problemDetail.setProperty("errors", resolveValidationErrors(exception));
+        return problemDetail;
+    }
+
+    /**
+     * Converts duplicated patient document failures to a conflict response.
+     *
+     * @param exception domain exception raised by the patient registration use case
+     * @param request current web request
+     * @return problem detail describing the document conflict
+     */
+    @ExceptionHandler(PatientDocumentAlreadyExistsException.class)
+    public ProblemDetail handlePatientDocumentAlreadyExists(
+            PatientDocumentAlreadyExistsException exception,
+            WebRequest request) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage());
+        problemDetail.setType(PATIENT_DOCUMENT_CONFLICT_TYPE);
+        problemDetail.setTitle("Patient document already exists");
+        problemDetail.setInstance(resolveInstance(request));
         return problemDetail;
     }
 

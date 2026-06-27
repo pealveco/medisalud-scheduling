@@ -1,5 +1,7 @@
 package co.com.medisalud.api.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -19,6 +21,7 @@ public record PatientResponse(
         String documentId,
         String phone,
         String email,
+        @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
         LocalDate birthDate
 ) {
 }

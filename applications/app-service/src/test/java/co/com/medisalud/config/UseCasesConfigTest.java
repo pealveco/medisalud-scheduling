@@ -1,6 +1,7 @@
 package co.com.medisalud.config;
 
 import co.com.medisalud.model.doctor.gateways.DoctorRepository;
+import co.com.medisalud.model.patient.gateways.PatientRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -36,6 +37,21 @@ class UseCasesConfigTest {
         @Bean
         public DoctorRepository doctorRepository() {
             return doctor -> doctor;
+        }
+
+        @Bean
+        public PatientRepository patientRepository() {
+            return new PatientRepository() {
+                @Override
+                public co.com.medisalud.model.patient.Patient save(co.com.medisalud.model.patient.Patient patient) {
+                    return patient;
+                }
+
+                @Override
+                public boolean existsByDocumentId(String documentId) {
+                    return false;
+                }
+            };
         }
 
         @Bean

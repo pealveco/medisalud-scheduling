@@ -11,14 +11,15 @@ Implementado:
 - Modelos de dominio puros: `Doctor`, `Patient`, `Appointment`, `Penalty` y `AppointmentStatus`.
 - DTOs explícitos de request/response para la API.
 - `POST /api/doctors` funcional con persistencia JPA.
-- Validaciones declarativas para registro de médicos.
+- `POST /api/patients` funcional con persistencia JPA y unicidad de documento.
+- Validaciones declarativas para registro de médicos y pacientes.
 - Respuestas de validación con `ProblemDetail` y campo `errors`.
+- Respuesta `409` con `ProblemDetail` para documento de paciente duplicado.
 - PostgreSQL local con Docker Compose para perfil `local`.
 - H2 en memoria para perfil `test`.
 
 Pendiente:
 
-- Registro de pacientes.
 - Reserva, disponibilidad, cancelación, listado y reprogramación de citas.
 - Handler completo para excepciones de dominio.
 - README final con todos los endpoints cuando estén implementados.
@@ -158,7 +159,7 @@ También puedes validar estructura del scaffold:
 ./gradlew validateStructure
 ```
 
-## Endpoint Implementado
+## Endpoints Implementados
 
 ### Registrar Médico
 
@@ -214,7 +215,75 @@ curl -i -X POST http://localhost:8080/api/doctors \
   }'
 ```
 
-## Errores de Validación
+### Registrar Paciente
+
+```http
+POST /api/patients
+```
+
+Request:
+
+```json
+{
+  "fullName": "Mateo Perez",
+  "documentId": "123456789",
+  "phone": "3107654321",
+  "email": "mateo.perez@medisalud.com",
+  "birthDate": "1990-05-12"
+}
+```
+
+Response `201`:
+
+```json
+{
+  "id": "generated-uuid",
+  "fullName": "Mateo Perez",
+  "documentId": "123456789",
+  "phone": "3107654321",
+  "email": "mateo.perez@medisalud.com",
+  "birthDate": "1990-05-12"
+}
+```
+
+Campos:
+
+- `fullName`: obligatorio, 3 a 100 caracteres.
+- `documentId`: obligatorio, único, mínimo 7 caracteres.
+- `phone`: obligatorio, mínimo 7 dígitos.
+- `email`: obligatorio, formato email.
+- `birthDate`: opcional, debe ser una fecha pasada si se envía.
+
+Un `documentId` duplicado retorna `409 Conflict`.
+
+Ejemplo con curl:
+
+```bash
+curl -i -X POST http://localhost:8080/api/patients \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fullName": "Mateo Perez",
+    "documentId": "123456789",
+    "phone": "3107654321",
+    "email": "mateo.perez@medisalud.com",
+    "birthDate": "1990-05-12"
+  }'
+```
+
+## Manejo de Errores
+
+La API usa `ProblemDetail` de Spring Boot, basado en RFC 7807, para mantener respuestas de error consistentes.
+
+Campos estándar:
+
+- `type`: URI estable que identifica el tipo de error. Puede apuntar a documentación futura.
+- `title`: descripción corta del error.
+- `status`: código HTTP.
+- `detail`: detalle específico de la ocurrencia.
+- `instance`: endpoint donde ocurrió el error.
+- `errors`: extensión usada solo en errores de validación `400`, con detalle por campo.
+
+Las URLs usadas en `type`, por ejemplo `https://medisalud.com/errors/patient-document-already-exists`, no tienen que existir como páginas reales durante el MVP. Funcionan como identificadores estables del tipo de problema.
 
 Las validaciones de entrada se manejan con Bean Validation en los request DTOs y un handler global con `ProblemDetail`.
 
@@ -236,6 +305,18 @@ Ejemplo `400`:
 }
 ```
 
+Ejemplo `409` por documento de paciente duplicado:
+
+```json
+{
+  "type": "https://medisalud.com/errors/patient-document-already-exists",
+  "title": "Patient document already exists",
+  "status": 409,
+  "detail": "Patient document already exists: 123456789",
+  "instance": "/api/patients"
+}
+```
+
 ## Comandos del Scaffold
 
 Este proyecto fue generado con el scaffold Clean Architecture de Bancolombia. Para módulos generados por el scaffold se deben usar sus tareas Gradle.
@@ -248,6 +329,7 @@ Comandos usados hasta ahora:
 ./gradlew gm --name=Appointment
 ./gradlew gm --name=Penalty
 ./gradlew guc --name=CreateDoctor
+./gradlew guc --name=CreatePatient
 ./gradlew gep --type=restmvc
 ./gradlew gda --type=jpa
 ```
