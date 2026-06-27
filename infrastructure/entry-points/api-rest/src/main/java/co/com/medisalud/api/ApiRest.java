@@ -10,6 +10,9 @@ import co.com.medisalud.api.dto.response.CancelAppointmentResponse;
 import co.com.medisalud.api.dto.response.DoctorResponse;
 import co.com.medisalud.api.dto.response.PatientResponse;
 import co.com.medisalud.api.dto.response.RescheduleAppointmentResponse;
+import co.com.medisalud.api.mapper.DoctorMapper;
+import co.com.medisalud.model.doctor.Doctor;
+import co.com.medisalud.usecase.createdoctor.CreateDoctorUseCase;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +46,9 @@ import java.util.UUID;
 @Validated
 public class ApiRest {
 
+    private final CreateDoctorUseCase createDoctorUseCase;
+    private final DoctorMapper doctorMapper;
+
     /**
      * Creates a doctor from a validated request body.
      *
@@ -51,7 +57,8 @@ public class ApiRest {
      */
     @PostMapping(path = "/doctors", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<DoctorResponse> createDoctor(@Valid @RequestBody CreateDoctorRequest request) {
-        return notImplemented();
+        Doctor registeredDoctor = createDoctorUseCase.createDoctor(doctorMapper.toDomain(request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(doctorMapper.toResponse(registeredDoctor));
     }
 
     /**

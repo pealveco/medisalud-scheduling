@@ -339,3 +339,8 @@ build-cache/
 
 # Local planning/spec notes
 SPEC.md
+
+# Local environment variables
+.env
+.env.*
+!.env.example

@@ -1,5 +1,6 @@
 package co.com.medisalud.config;
 
+import co.com.medisalud.model.doctor.gateways.DoctorRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -31,6 +32,11 @@ class UseCasesConfigTest {
     @Configuration
     @Import(UseCasesConfig.class)
     static class TestConfig {
+
+        @Bean
+        public DoctorRepository doctorRepository() {
+            return doctor -> doctor;
+        }
 
         @Bean
         public MyUseCase myUseCase() {

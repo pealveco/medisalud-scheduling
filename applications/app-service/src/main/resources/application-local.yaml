@@ -1,0 +1,12 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/medisalud}
+    username: ${DB_USER:medisalud}
+    password: ${DB_PASS:medisalud}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:update}
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200,http://localhost:8080}

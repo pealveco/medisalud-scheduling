@@ -1,24 +1,27 @@
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
 spring:
   application:
-    name: "MediSalud-Scheduling"
+    name: ${APP_NAME:MediSalud-Scheduling}
   devtools:
     add-properties: false
-  h2:
-    console:
-      enabled: true
-      path: "/h2"
-  profiles:
-    include: null
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASS}
+    driver-class-name: ${DB_DRIVER:org.postgresql.Driver}
+  jpa:
+    database-platform: ${DB_DIALECT:org.hibernate.dialect.PostgreSQLDialect}
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:validate}
 management:
   endpoints:
     web:
       exposure:
-        include: "health,prometheus"
+        include: ${MANAGEMENT_ENDPOINTS:health,prometheus}
   endpoint:
     health:
       probes:
         enabled: true
 cors:
-  allowed-origins: "http://localhost:4200,http://localhost:8080"
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:8080}
