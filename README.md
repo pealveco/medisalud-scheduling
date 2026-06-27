@@ -196,6 +196,11 @@ Campos:
 - `phone`: opcional, mínimo 7 dígitos si se envía.
 - `email`: opcional, formato email si se envía.
 
+Decisión de negocio:
+
+- RF-01 no aplica restricción de unicidad para médicos porque el enunciado no define un identificador natural obligatorio. Cada solicitud válida a `POST /api/doctors` crea un nuevo médico.
+- En un caso real sería pertinente definir un dato que permita garantizar unicidad, por ejemplo número de licencia médica, registro profesional o un identificador externo obligatorio.
+
 Ejemplo con curl:
 
 ```bash
