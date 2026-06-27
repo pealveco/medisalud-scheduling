@@ -333,4 +333,9 @@ gradle-app.setting
 # HPROF
 # -----
 *.hprof
-build-cache
+
+# Project-local generated cache
+build-cache/
+
+# Local planning/spec notes
+SPEC.md
