@@ -122,6 +122,22 @@ Detener PostgreSQL eliminando también el volumen de datos:
 docker compose --env-file medisalud.env.local down -v
 ```
 
+## Datos Iniciales Locales
+
+El perfil `local` ejecuta `data-local.sql` al arrancar la aplicación. Este seed carga médicos y pacientes de ejemplo en PostgreSQL local.
+
+La carga se activa con:
+
+```yaml
+spring:
+  sql:
+    init:
+      mode: always
+      platform: local
+```
+
+Por ahora solo están activos los seeds de `doctors` y `patients`. Las secciones de `appointments` y `penalties` quedan comentadas hasta implementar sus entidades y adapters JPA.
+
 ## Ejecutar la Aplicación
 
 Con PostgreSQL local ya levantado:

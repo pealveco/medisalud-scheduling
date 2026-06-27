@@ -1,14 +1,21 @@
 -- ============================================================
 -- Datos iniciales — perfil: local (solo PostgreSQL)
 --
--- Spring Boot ejecuta este archivo automáticamente al arrancar.
+-- Spring Boot ejecuta este archivo automáticamente al arrancar
+-- con el perfil local porque application-local.yml define:
+--   spring.sql.init.platform: local
+--
 -- Requiere en application-local.yml:
 --   spring.jpa.defer-datasource-initialization: true  (Hibernate
 --     crea el esquema antes de que corra este SQL)
 --   spring.sql.init.mode: always  (PostgreSQL no es BD embebida;
 --     sin esta propiedad Spring Boot nunca ejecuta el archivo)
 --
--- Todos los INSERT usan ON CONFLICT (id) DO NOTHING, por lo que
+-- Actualmente solo están activos los seeds de doctors y patients.
+-- Las secciones de appointments y penalties quedan comentadas hasta
+-- implementar sus entidades/adapters JPA.
+--
+-- Todos los INSERT usan ON CONFLICT DO NOTHING, por lo que
 -- el archivo es seguro en cada reinicio: si el registro ya existe
 -- se omite sin error y sin sobreescribir datos.
 --
@@ -29,7 +36,7 @@ VALUES
     ('a1b2c3d4-e5f6-7890-abcd-ef1234567890', 'Carlos Andres Mejia',   'Cardiology',       '3001234567', 'carlos.mejia@medisalud.com'),
     ('b2c3d4e5-f6a7-8901-bcde-f12345678901', 'Maria Fernanda Ospina', 'Pediatrics',       '3012345678', 'maria.ospina@medisalud.com'),
     ('c3d4e5f6-a7b8-9012-cdef-123456789012', 'Juan David Vargas',     'General Medicine', '3023456789', 'juan.vargas@medisalud.com')
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT DO NOTHING;
 
 -- ---------------------------------------------------------------
 -- PATIENTS
@@ -42,7 +49,11 @@ VALUES
     ('d4e5f6a7-b8c9-0123-def0-234567890123', 'Mateo Restrepo Gomez',  '10234567890', '3034567890', 'mateo.restrepo@email.com',  '1990-03-15'),
     ('e5f6a7b8-c9d0-1234-ef01-345678901234', 'Laura Jimenez Herrera', '20234567890', '3045678901', 'laura.jimenez@email.com',   '1985-07-22'),
     ('f6a7b8c9-d0e1-2345-f012-456789012345', 'Ricardo Morales Pena',  '30234567890', '3056789012', 'ricardo.morales@email.com', '1978-11-08')
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT DO NOTHING;
+
+/*
+TODO: descomentar estas secciones cuando existan AppointmentData,
+AppointmentRepositoryAdapter, PenaltyData y PenaltyRepositoryAdapter.
 
 -- ---------------------------------------------------------------
 -- APPOINTMENTS
@@ -141,3 +152,4 @@ VALUES
      'ffffffff-ffff-ffff-ffff-ffffffffffff',
      date_trunc('day', NOW() - INTERVAL '5 days') + TIME '08:30:00')
 ON CONFLICT (id) DO NOTHING;
+*/
