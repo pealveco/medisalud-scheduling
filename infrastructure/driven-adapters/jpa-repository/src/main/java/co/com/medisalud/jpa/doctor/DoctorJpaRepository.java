@@ -1,4 +1,4 @@
-package co.com.medisalud.jpa;
+package co.com.medisalud.jpa.doctor;
 
 import co.com.medisalud.jpa.entity.DoctorData;
 import org.springframework.data.repository.CrudRepository;

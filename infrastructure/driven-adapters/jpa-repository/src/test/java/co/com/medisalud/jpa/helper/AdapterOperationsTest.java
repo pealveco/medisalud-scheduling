@@ -1,7 +1,7 @@
 package co.com.medisalud.jpa.helper;
 
-import co.com.medisalud.jpa.DoctorJpaRepository;
-import co.com.medisalud.jpa.DoctorRepositoryAdapter;
+import co.com.medisalud.jpa.doctor.DoctorJpaRepository;
+import co.com.medisalud.jpa.doctor.DoctorRepositoryAdapter;
 import co.com.medisalud.jpa.entity.DoctorData;
 import co.com.medisalud.model.doctor.Doctor;
 import org.junit.jupiter.api.BeforeEach;
