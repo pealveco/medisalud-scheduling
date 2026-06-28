@@ -14,9 +14,10 @@
 -- Actualmente están activos los seeds de doctors, patients,
 -- appointments y penalties.
 --
--- Todos los INSERT usan ON CONFLICT DO NOTHING, por lo que
--- el archivo es seguro en cada reinicio: si el registro ya existe
--- se omite sin error y sin sobreescribir datos.
+-- Doctors y patients usan ON CONFLICT DO NOTHING para no sobreescribir
+-- datos editados localmente. Appointments y penalties usan ON CONFLICT
+-- DO UPDATE para refrescar fechas relativas a NOW() en cada arranque;
+-- así los escenarios de demo no dependen del día en que se revise la prueba.
 --
 -- Los nombres de columna siguen la estrategia de nomenclatura de
 -- Spring (SpringPhysicalNamingStrategy): camelCase del campo Java
@@ -63,7 +64,12 @@ VALUES
      date_trunc('day', NOW() + INTERVAL '5 days') + TIME '08:00:00',
      'SCHEDULED',
      NULL)
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET
+    patient_id = EXCLUDED.patient_id,
+    doctor_id = EXCLUDED.doctor_id,
+    date_time = EXCLUDED.date_time,
+    status = EXCLUDED.status,
+    cancelled_at = EXCLUDED.cancelled_at;
 
 -- Laura: 2 CANCELLED appointments that triggered penalties.
 -- Each was cancelled 90 min before the appointment (< 2h → penalty per RN-05).
@@ -82,7 +88,12 @@ VALUES
      date_trunc('day', NOW() - INTERVAL '10 days') + TIME '10:00:00',
      'CANCELLED',
      date_trunc('day', NOW() - INTERVAL '10 days') + TIME '08:30:00')
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET
+    patient_id = EXCLUDED.patient_id,
+    doctor_id = EXCLUDED.doctor_id,
+    date_time = EXCLUDED.date_time,
+    status = EXCLUDED.status,
+    cancelled_at = EXCLUDED.cancelled_at;
 
 -- Ricardo: 3 CANCELLED appointments that triggered penalties.
 -- Also cancelled 90 min before appointment → all 3 within last 30 days → BLOCKED.
@@ -108,7 +119,12 @@ VALUES
      date_trunc('day', NOW() - INTERVAL '5 days') + TIME '10:00:00',
      'CANCELLED',
      date_trunc('day', NOW() - INTERVAL '5 days') + TIME '08:30:00')
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET
+    patient_id = EXCLUDED.patient_id,
+    doctor_id = EXCLUDED.doctor_id,
+    date_time = EXCLUDED.date_time,
+    status = EXCLUDED.status,
+    cancelled_at = EXCLUDED.cancelled_at;
 
 -- ---------------------------------------------------------------
 -- PENALTIES
@@ -127,7 +143,10 @@ VALUES
      'e5f6a7b8-c9d0-1234-ef01-345678901234',
      'cccccccc-cccc-cccc-cccc-cccccccccccc',
      date_trunc('day', NOW() - INTERVAL '10 days') + TIME '08:30:00')
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET
+    patient_id = EXCLUDED.patient_id,
+    appointment_id = EXCLUDED.appointment_id,
+    created_at = EXCLUDED.created_at;
 
 -- Ricardo: 3 penalties in last 30 days → any new booking returns 409 PatientBlocked
 INSERT INTO penalties (id, patient_id, appointment_id, created_at)
@@ -146,4 +165,7 @@ VALUES
      'f6a7b8c9-d0e1-2345-f012-456789012345',
      'ffffffff-ffff-ffff-ffff-ffffffffffff',
      date_trunc('day', NOW() - INTERVAL '5 days') + TIME '08:30:00')
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET
+    patient_id = EXCLUDED.patient_id,
+    appointment_id = EXCLUDED.appointment_id,
+    created_at = EXCLUDED.created_at;

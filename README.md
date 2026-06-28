@@ -137,7 +137,7 @@ spring:
       platform: local
 ```
 
-El script usa `ON CONFLICT DO NOTHING` para poder ejecutarse en cada arranque sin duplicar los registros existentes.
+El script puede ejecutarse en cada arranque sin duplicar registros. Médicos y pacientes usan `ON CONFLICT DO NOTHING`; citas y penalizaciones usan `ON CONFLICT DO UPDATE` para refrescar fechas relativas a `NOW()` y mantener reproducibles los escenarios temporales, como el paciente bloqueado por 3 penalizaciones en los últimos 30 días.
 
 Las entidades JPA declaran explícitamente los nombres de columna en `snake_case` cuando el campo Java usa `camelCase` (`fullName` -> `full_name`, `patientId` -> `patient_id`, etc.). Esto mantiene compatible el esquema generado por Hibernate con `data-local.sql`.
 
@@ -308,9 +308,11 @@ Request:
 {
   "patientId": "d4e5f6a7-b8c9-0123-def0-234567890123",
   "doctorId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-  "dateTime": "2026-07-01T08:00:00"
+  "dateTime": "YYYY-MM-DDT08:00:00"
 }
 ```
+
+`dateTime` debe reemplazarse por una fecha futura, en día laboral, no festivo y alineada a una franja de 30 minutos.
 
 Response `201`:
 
@@ -319,7 +321,7 @@ Response `201`:
   "id": "generated-uuid",
   "patientId": "d4e5f6a7-b8c9-0123-def0-234567890123",
   "doctorId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-  "dateTime": "2026-07-01T08:00:00",
+  "dateTime": "YYYY-MM-DDT08:00:00",
   "status": "SCHEDULED"
 }
 ```
@@ -344,13 +346,15 @@ Decisión de negocio:
 Ejemplo con curl:
 
 ```bash
+APPOINTMENT_DATE_TIME="YYYY-MM-DDT08:00:00"
+
 curl -i -X POST http://localhost:8080/api/appointments \
   -H "Content-Type: application/json" \
-  -d '{
-    "patientId": "d4e5f6a7-b8c9-0123-def0-234567890123",
-    "doctorId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    "dateTime": "2026-07-01T08:00:00"
-  }'
+  -d "{
+    \"patientId\": \"d4e5f6a7-b8c9-0123-def0-234567890123\",
+    \"doctorId\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",
+    \"dateTime\": \"${APPOINTMENT_DATE_TIME}\"
+  }"
 ```
 
 ## Manejo de Errores
@@ -407,7 +411,7 @@ Ejemplo `409` por conflicto de franja:
   "type": "https://medisalud.com/errors/slot-conflict",
   "title": "Slot conflict",
   "status": 409,
-  "detail": "Doctor already has an appointment at 2026-07-01T08:00",
+  "detail": "Doctor already has an appointment at YYYY-MM-DDT08:00",
   "instance": "/api/appointments"
 }
 ```
