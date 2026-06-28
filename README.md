@@ -12,16 +12,17 @@ Implementado:
 - DTOs explícitos de request/response para la API.
 - `POST /api/doctors` funcional con persistencia JPA.
 - `POST /api/patients` funcional con persistencia JPA y unicidad de documento.
-- Validaciones declarativas para registro de médicos y pacientes.
+- `POST /api/appointments` funcional con validaciones de reserva RN-01 a RN-05.
+- Validaciones declarativas para registro de médicos, pacientes y reserva de citas.
 - Respuestas de validación con `ProblemDetail` y campo `errors`.
-- Respuesta `409` con `ProblemDetail` para documento de paciente duplicado.
+- Respuestas `404` y `409` con `ProblemDetail` para recursos inexistentes, duplicidades, conflictos de franja y bloqueo de paciente.
 - PostgreSQL local con Docker Compose para perfil `local`.
 - H2 en memoria para perfil `test`.
 
 Pendiente:
 
-- Reserva, disponibilidad, cancelación, listado y reprogramación de citas.
-- Handler completo para excepciones de dominio.
+- Disponibilidad, cancelación, listado y reprogramación de citas.
+- Handler completo para las excepciones de dominio de las próximas HU.
 - README final con todos los endpoints cuando estén implementados.
 
 ## Stack
@@ -124,7 +125,7 @@ docker compose --env-file medisalud.env.local down -v
 
 ## Datos Iniciales Locales
 
-El perfil `local` ejecuta `data-local.sql` al arrancar la aplicación. Este seed carga médicos y pacientes de ejemplo en PostgreSQL local.
+El perfil `local` ejecuta `data-local.sql` al arrancar la aplicación. Este seed carga médicos, pacientes, citas y penalizaciones de ejemplo en PostgreSQL local.
 
 La carga se activa con:
 
@@ -136,7 +137,16 @@ spring:
       platform: local
 ```
 
-Por ahora solo están activos los seeds de `doctors` y `patients`. Las secciones de `appointments` y `penalties` quedan comentadas hasta implementar sus entidades y adapters JPA.
+El script usa `ON CONFLICT DO NOTHING` para poder ejecutarse en cada arranque sin duplicar los registros existentes.
+
+Las entidades JPA declaran explícitamente los nombres de columna en `snake_case` cuando el campo Java usa `camelCase` (`fullName` -> `full_name`, `patientId` -> `patient_id`, etc.). Esto mantiene compatible el esquema generado por Hibernate con `data-local.sql`.
+
+Si cambian entidades, nombres de columnas o el contenido del seed, y PostgreSQL local ya tenía un volumen creado, `JPA_DDL_AUTO=update` no renombra columnas existentes de forma segura. Para reiniciar la base local desde cero:
+
+```bash
+docker compose --env-file medisalud.env.local down -v
+docker compose --env-file medisalud.env.local up -d postgres
+```
 
 ## Ejecutar la Aplicación
 
@@ -286,6 +296,63 @@ curl -i -X POST http://localhost:8080/api/patients \
   }'
 ```
 
+### Reservar Cita
+
+```http
+POST /api/appointments
+```
+
+Request:
+
+```json
+{
+  "patientId": "d4e5f6a7-b8c9-0123-def0-234567890123",
+  "doctorId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "dateTime": "2026-07-01T08:00:00"
+}
+```
+
+Response `201`:
+
+```json
+{
+  "id": "generated-uuid",
+  "patientId": "d4e5f6a7-b8c9-0123-def0-234567890123",
+  "doctorId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "dateTime": "2026-07-01T08:00:00",
+  "status": "SCHEDULED"
+}
+```
+
+Validaciones de negocio:
+
+- El paciente y el médico deben existir; si no existen, retorna `404`.
+- `dateTime` debe estar alineado a una franja de 30 minutos.
+- Horario laboral: lunes a viernes de `08:00` a `18:00`, último inicio válido `17:30`.
+- Sábado de `08:00` a `13:00`, último inicio válido `12:30`.
+- Domingo y festivos no hay atención.
+- El calendario de festivos asumido para el MVP es Colombia, calculado por año. Incluye festivos fijos y festivos móviles derivados del Domingo de Pascua.
+- Si el médico ya tiene una cita `SCHEDULED` en la franja, retorna `409`.
+- Si el mismo paciente ya tiene cita `SCHEDULED` con el mismo médico en la franja, retorna `409`.
+- Si el paciente tiene 3 o más penalizaciones en los últimos 30 días, retorna `409`.
+
+Decisión de negocio:
+
+- RN-04 se implementa de forma literal: el conflicto de paciente aplica para mismo paciente + mismo médico + misma franja. El mismo paciente con otro médico en la misma franja no se bloquea por esta regla.
+- Para el MVP, los festivos se calculan localmente usando el calendario de Colombia. Los festivos móviles se derivan del Domingo de Pascua mediante un cálculo interno, porque cambian cada año. En un producto real convendría externalizar esta fuente mediante una tabla administrable o una integración sincronizada con una API de festivos, evitando depender de una API externa en tiempo real durante la reserva.
+
+Ejemplo con curl:
+
+```bash
+curl -i -X POST http://localhost:8080/api/appointments \
+  -H "Content-Type: application/json" \
+  -d '{
+    "patientId": "d4e5f6a7-b8c9-0123-def0-234567890123",
+    "doctorId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "dateTime": "2026-07-01T08:00:00"
+  }'
+```
+
 ## Manejo de Errores
 
 La API usa `ProblemDetail` de Spring Boot, basado en RFC 7807, para mantener respuestas de error consistentes.
@@ -333,6 +400,18 @@ Ejemplo `409` por documento de paciente duplicado:
 }
 ```
 
+Ejemplo `409` por conflicto de franja:
+
+```json
+{
+  "type": "https://medisalud.com/errors/slot-conflict",
+  "title": "Slot conflict",
+  "status": 409,
+  "detail": "Doctor already has an appointment at 2026-07-01T08:00",
+  "instance": "/api/appointments"
+}
+```
+
 ## Comandos del Scaffold
 
 Este proyecto fue generado con el scaffold Clean Architecture de Bancolombia. Para módulos generados por el scaffold se deben usar sus tareas Gradle.
@@ -346,6 +425,7 @@ Comandos usados hasta ahora:
 ./gradlew gm --name=Penalty
 ./gradlew guc --name=CreateDoctor
 ./gradlew guc --name=CreatePatient
+./gradlew guc --name=CreateAppointment
 ./gradlew gep --type=restmvc
 ./gradlew gda --type=jpa
 ```

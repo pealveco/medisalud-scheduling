@@ -15,9 +15,17 @@ class CreateDoctorUseCaseTest {
     @Test
     void shouldGenerateIdWhenDoctorDoesNotHaveOne() {
         AtomicReference<Doctor> savedDoctor = new AtomicReference<>();
-        DoctorRepository repository = doctor -> {
-            savedDoctor.set(doctor);
-            return doctor;
+        DoctorRepository repository = new DoctorRepository() {
+            @Override
+            public Doctor save(Doctor doctor) {
+                savedDoctor.set(doctor);
+                return doctor;
+            }
+
+            @Override
+            public Doctor findById(UUID id) {
+                return null;
+            }
         };
         CreateDoctorUseCase useCase = new CreateDoctorUseCase(repository);
         Doctor doctor = Doctor.builder()
@@ -40,7 +48,17 @@ class CreateDoctorUseCaseTest {
     @Test
     void shouldKeepExistingIdWhenDoctorAlreadyHasOne() {
         UUID existingId = UUID.randomUUID();
-        DoctorRepository repository = doctor -> doctor;
+        DoctorRepository repository = new DoctorRepository() {
+            @Override
+            public Doctor save(Doctor doctor) {
+                return doctor;
+            }
+
+            @Override
+            public Doctor findById(UUID id) {
+                return null;
+            }
+        };
         CreateDoctorUseCase useCase = new CreateDoctorUseCase(repository);
         Doctor doctor = Doctor.builder()
                 .id(existingId)

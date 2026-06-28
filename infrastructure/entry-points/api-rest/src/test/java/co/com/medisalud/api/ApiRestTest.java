@@ -10,6 +10,16 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.Month;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.TemporalAdjusters;
+import java.util.Set;
+import java.util.UUID;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -18,6 +28,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(classes = TestConfig.class)
 @ActiveProfiles("test")
 class ApiRestTest {
+
+    private static final DateTimeFormatter DATE_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     @Autowired
     private WebApplicationContext context;
@@ -231,6 +244,108 @@ class ApiRestTest {
     }
 
     @Test
+    void shouldCreateAppointmentWhenPayloadIsValid() throws Exception {
+        LocalDateTime dateTime = nextWorkingDateTime(LocalTime.of(8, 0));
+        String request = appointmentRequest(TestConfig.EXISTING_PATIENT_ID, TestConfig.EXISTING_DOCTOR_ID, dateTime);
+
+        client.perform(post("/api/appointments")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(request))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").exists())
+                .andExpect(jsonPath("$.patientId").value(TestConfig.EXISTING_PATIENT_ID.toString()))
+                .andExpect(jsonPath("$.doctorId").value(TestConfig.EXISTING_DOCTOR_ID.toString()))
+                .andExpect(jsonPath("$.dateTime").value(DATE_TIME_FORMATTER.format(dateTime)))
+                .andExpect(jsonPath("$.status").value("SCHEDULED"));
+    }
+
+    @Test
+    void shouldRejectAppointmentWhenPatientDoesNotExist() throws Exception {
+        String request = appointmentRequest(UUID.randomUUID(), TestConfig.EXISTING_DOCTOR_ID,
+                nextWorkingDateTime(LocalTime.of(8, 30)));
+
+        client.perform(post("/api/appointments")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(request))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.type").value("https://medisalud.com/errors/resource-not-found"));
+    }
+
+    @Test
+    void shouldRejectAppointmentWhenDoctorDoesNotExist() throws Exception {
+        String request = appointmentRequest(TestConfig.EXISTING_PATIENT_ID, UUID.randomUUID(),
+                nextWorkingDateTime(LocalTime.of(9, 0)));
+
+        client.perform(post("/api/appointments")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(request))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.type").value("https://medisalud.com/errors/resource-not-found"));
+    }
+
+    @Test
+    void shouldRejectAppointmentWhenDateTimeIsNotAlignedToThirtyMinutes() throws Exception {
+        String request = appointmentRequest(TestConfig.EXISTING_PATIENT_ID, TestConfig.EXISTING_DOCTOR_ID,
+                nextWorkingDateTime(LocalTime.of(9, 15)));
+
+        client.perform(post("/api/appointments")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(request))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("https://medisalud.com/errors/invalid-appointment-slot"));
+    }
+
+    @Test
+    void shouldRejectAppointmentOutsideWorkingHours() throws Exception {
+        String request = appointmentRequest(TestConfig.EXISTING_PATIENT_ID, TestConfig.EXISTING_DOCTOR_ID,
+                nextSundayDateTime(LocalTime.of(10, 0)));
+
+        client.perform(post("/api/appointments")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(request))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("https://medisalud.com/errors/outside-working-hours"));
+    }
+
+    @Test
+    void shouldRejectAppointmentWhenDoctorSlotIsAlreadyTaken() throws Exception {
+        LocalDateTime dateTime = nextWorkingDateTime(LocalTime.of(10, 0));
+        String firstRequest = appointmentRequest(TestConfig.EXISTING_PATIENT_ID, TestConfig.EXISTING_DOCTOR_ID, dateTime);
+        String secondRequest = appointmentRequest(TestConfig.OTHER_PATIENT_ID, TestConfig.EXISTING_DOCTOR_ID, dateTime);
+
+        client.perform(post("/api/appointments")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(firstRequest))
+                .andExpect(status().isCreated());
+
+        client.perform(post("/api/appointments")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(secondRequest))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.type").value("https://medisalud.com/errors/slot-conflict"));
+    }
+
+    @Test
+    void shouldRejectAppointmentWhenPatientIsBlocked() throws Exception {
+        String request = appointmentRequest(TestConfig.BLOCKED_PATIENT_ID, TestConfig.EXISTING_DOCTOR_ID,
+                nextWorkingDateTime(LocalTime.of(11, 0)));
+
+        client.perform(post("/api/appointments")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(request))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.type").value("https://medisalud.com/errors/patient-blocked"));
+    }
+
+    @Test
     void shouldReturnNotFoundForInvalidPath() throws Exception {
         client.perform(get("/api/invalid")
                 .accept(MediaType.APPLICATION_JSON))
@@ -245,5 +360,80 @@ class ApiRestTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.errors[?(@.field == '%s')]".formatted(fieldName)).exists());
+    }
+
+    private static String appointmentRequest(UUID patientId, UUID doctorId, LocalDateTime dateTime) {
+        return """
+                {
+                  "patientId": "%s",
+                  "doctorId": "%s",
+                  "dateTime": "%s"
+                }
+                """.formatted(patientId, doctorId, DATE_TIME_FORMATTER.format(dateTime));
+    }
+
+    private static LocalDateTime nextWorkingDateTime(LocalTime time) {
+        LocalDate date = LocalDate.now().plusDays(1);
+        while (date.getDayOfWeek() == DayOfWeek.SUNDAY
+                || date.getDayOfWeek() == DayOfWeek.SATURDAY
+                || colombianHolidays(date.getYear()).contains(date)) {
+            date = date.plusDays(1);
+        }
+        return LocalDateTime.of(date, time);
+    }
+
+    private static LocalDateTime nextSundayDateTime(LocalTime time) {
+        LocalDate date = LocalDate.now().plusDays(1);
+        while (date.getDayOfWeek() != DayOfWeek.SUNDAY) {
+            date = date.plusDays(1);
+        }
+        return LocalDateTime.of(date, time);
+    }
+
+    private static Set<LocalDate> colombianHolidays(int year) {
+        LocalDate easterSunday = easterSunday(year);
+        return Set.of(
+                LocalDate.of(year, Month.JANUARY, 1),
+                nextMonday(LocalDate.of(year, Month.JANUARY, 6)),
+                nextMonday(LocalDate.of(year, Month.MARCH, 19)),
+                easterSunday.minusDays(3),
+                easterSunday.minusDays(2),
+                LocalDate.of(year, Month.MAY, 1),
+                nextMonday(easterSunday.plusDays(43)),
+                nextMonday(easterSunday.plusDays(64)),
+                nextMonday(easterSunday.plusDays(71)),
+                nextMonday(LocalDate.of(year, Month.JUNE, 29)),
+                LocalDate.of(year, Month.JULY, 20),
+                LocalDate.of(year, Month.AUGUST, 7),
+                nextMonday(LocalDate.of(year, Month.AUGUST, 15)),
+                nextMonday(LocalDate.of(year, Month.OCTOBER, 12)),
+                nextMonday(LocalDate.of(year, Month.NOVEMBER, 1)),
+                nextMonday(LocalDate.of(year, Month.NOVEMBER, 11)),
+                LocalDate.of(year, Month.DECEMBER, 8),
+                LocalDate.of(year, Month.DECEMBER, 25)
+        );
+    }
+
+    private static LocalDate nextMonday(LocalDate date) {
+        return date.with(TemporalAdjusters.nextOrSame(DayOfWeek.MONDAY));
+    }
+
+    private static LocalDate easterSunday(int year) {
+        int remainderA = year % 19;
+        int century = year / 100;
+        int yearOfCentury = year % 100;
+        int leapCenturyAdjustment = century / 4;
+        int centuryRemainder = century % 4;
+        int correction = (century + 8) / 25;
+        int moonCorrection = (century - correction + 1) / 3;
+        int epact = (19 * remainderA + century - leapCenturyAdjustment - moonCorrection + 15) % 30;
+        int yearOfCenturyLeap = yearOfCentury / 4;
+        int yearOfCenturyRemainder = yearOfCentury % 4;
+        int weekdayCorrection = (32 + 2 * centuryRemainder + 2 * yearOfCenturyLeap
+                - epact - yearOfCenturyRemainder) % 7;
+        int finalCorrection = (remainderA + 11 * epact + 22 * weekdayCorrection) / 451;
+        int month = (epact + weekdayCorrection - 7 * finalCorrection + 114) / 31;
+        int day = ((epact + weekdayCorrection - 7 * finalCorrection + 114) % 31) + 1;
+        return LocalDate.of(year, month, day);
     }
 }

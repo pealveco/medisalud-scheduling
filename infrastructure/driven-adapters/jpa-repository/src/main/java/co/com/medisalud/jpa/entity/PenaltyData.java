@@ -10,32 +10,30 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * JPA persistence entity for doctors.
+ * JPA persistence entity for penalties.
  */
 @Entity
-@Table(name = "doctors")
+@Table(name = "penalties")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class DoctorData {
+public class PenaltyData {
 
     @Id
     private UUID id;
 
-    @Column(name = "full_name", nullable = false, length = 100)
-    private String fullName;
+    @Column(name = "patient_id", nullable = false)
+    private UUID patientId;
 
-    @Column(nullable = false)
-    private String specialty;
+    @Column(name = "appointment_id", nullable = false)
+    private UUID appointmentId;
 
-    @Column
-    private String phone;
-
-    @Column
-    private String email;
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
 }

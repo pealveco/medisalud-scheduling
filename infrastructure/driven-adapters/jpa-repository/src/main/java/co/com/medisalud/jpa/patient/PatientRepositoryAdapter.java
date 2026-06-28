@@ -47,4 +47,15 @@ public class PatientRepositoryAdapter extends AdapterOperations<Patient, Patient
     public boolean existsByDocumentId(String documentId) {
         return repository.existsByDocumentId(documentId);
     }
+
+    /**
+     * Finds a patient by identifier.
+     *
+     * @param id patient identifier
+     * @return patient when it exists, otherwise null
+     */
+    @Override
+    public Patient findById(UUID id) {
+        return super.findById(id);
+    }
 }

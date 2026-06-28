@@ -32,7 +32,7 @@ public class PatientData {
     @Id
     private UUID id;
 
-    @Column(nullable = false, length = 100)
+    @Column(name = "full_name", nullable = false, length = 100)
     private String fullName;
 
     @Column(name = "document_id", nullable = false, length = 50)
@@ -44,6 +44,6 @@ public class PatientData {
     @Column(nullable = false)
     private String email;
 
-    @Column
+    @Column(name = "birth_date")
     private LocalDate birthDate;
 }

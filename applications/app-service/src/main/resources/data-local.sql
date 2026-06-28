@@ -11,9 +11,8 @@
 --   spring.sql.init.mode: always  (PostgreSQL no es BD embebida;
 --     sin esta propiedad Spring Boot nunca ejecuta el archivo)
 --
--- Actualmente solo están activos los seeds de doctors y patients.
--- Las secciones de appointments y penalties quedan comentadas hasta
--- implementar sus entidades/adapters JPA.
+-- Actualmente están activos los seeds de doctors, patients,
+-- appointments y penalties.
 --
 -- Todos los INSERT usan ON CONFLICT DO NOTHING, por lo que
 -- el archivo es seguro en cada reinicio: si el registro ya existe
@@ -50,10 +49,6 @@ VALUES
     ('e5f6a7b8-c9d0-1234-ef01-345678901234', 'Laura Jimenez Herrera', '20234567890', '3045678901', 'laura.jimenez@email.com',   '1985-07-22'),
     ('f6a7b8c9-d0e1-2345-f012-456789012345', 'Ricardo Morales Pena',  '30234567890', '3056789012', 'ricardo.morales@email.com', '1978-11-08')
 ON CONFLICT DO NOTHING;
-
-/*
-TODO: descomentar estas secciones cuando existan AppointmentData,
-AppointmentRepositoryAdapter, PenaltyData y PenaltyRepositoryAdapter.
 
 -- ---------------------------------------------------------------
 -- APPOINTMENTS
@@ -152,4 +147,3 @@ VALUES
      'ffffffff-ffff-ffff-ffff-ffffffffffff',
      date_trunc('day', NOW() - INTERVAL '5 days') + TIME '08:30:00')
 ON CONFLICT (id) DO NOTHING;
-*/

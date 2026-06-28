@@ -19,4 +19,15 @@ public class DoctorRepositoryAdapter extends AdapterOperations<Doctor, DoctorDat
     public DoctorRepositoryAdapter(DoctorJpaRepository repository, ObjectMapper mapper) {
         super(repository, mapper, doctorData -> mapper.mapBuilder(doctorData, Doctor.DoctorBuilder.class).build());
     }
+
+    /**
+     * Finds a doctor by identifier.
+     *
+     * @param id doctor identifier
+     * @return doctor when it exists, otherwise null
+     */
+    @Override
+    public Doctor findById(UUID id) {
+        return super.findById(id);
+    }
 }

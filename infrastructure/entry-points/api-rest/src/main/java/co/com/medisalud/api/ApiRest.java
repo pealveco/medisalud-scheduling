@@ -10,10 +10,13 @@ import co.com.medisalud.api.dto.response.CancelAppointmentResponse;
 import co.com.medisalud.api.dto.response.DoctorResponse;
 import co.com.medisalud.api.dto.response.PatientResponse;
 import co.com.medisalud.api.dto.response.RescheduleAppointmentResponse;
+import co.com.medisalud.api.mapper.AppointmentMapper;
 import co.com.medisalud.api.mapper.DoctorMapper;
 import co.com.medisalud.api.mapper.PatientMapper;
+import co.com.medisalud.model.appointment.Appointment;
 import co.com.medisalud.model.doctor.Doctor;
 import co.com.medisalud.model.patient.Patient;
+import co.com.medisalud.usecase.createappointment.CreateAppointmentUseCase;
 import co.com.medisalud.usecase.createdoctor.CreateDoctorUseCase;
 import co.com.medisalud.usecase.createpatient.CreatePatientUseCase;
 import jakarta.validation.Valid;
@@ -51,6 +54,8 @@ public class ApiRest {
 
     private final CreateDoctorUseCase createDoctorUseCase;
     private final CreatePatientUseCase createPatientUseCase;
+    private final CreateAppointmentUseCase createAppointmentUseCase;
+    private final AppointmentMapper appointmentMapper;
     private final DoctorMapper doctorMapper;
     private final PatientMapper patientMapper;
 
@@ -87,7 +92,8 @@ public class ApiRest {
     @PostMapping(path = "/appointments", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<AppointmentResponse> createAppointment(
             @Valid @RequestBody CreateAppointmentRequest request) {
-        return notImplemented();
+        Appointment scheduledAppointment = createAppointmentUseCase.createAppointment(appointmentMapper.toDomain(request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(appointmentMapper.toResponse(scheduledAppointment));
     }
 
     /**

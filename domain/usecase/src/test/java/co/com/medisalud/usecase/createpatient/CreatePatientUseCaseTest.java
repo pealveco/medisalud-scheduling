@@ -74,6 +74,14 @@ class CreatePatientUseCaseTest {
         }
 
         @Override
+        public Patient findById(UUID id) {
+            return patientsByDocumentId.values().stream()
+                    .filter(patient -> id.equals(patient.getId()))
+                    .findFirst()
+                    .orElse(null);
+        }
+
+        @Override
         public boolean existsByDocumentId(String documentId) {
             return patientsByDocumentId.containsKey(documentId);
         }
