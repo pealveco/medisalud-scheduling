@@ -1,6 +1,7 @@
 package co.com.medisalud.model.appointment.gateways;
 
 import co.com.medisalud.model.appointment.Appointment;
+import co.com.medisalud.model.appointmentsearchcriteria.AppointmentSearchCriteria;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -61,4 +62,12 @@ public interface AppointmentRepository {
             UUID doctorId,
             LocalDateTime startDateTime,
             LocalDateTime endDateTime);
+
+    /**
+     * Finds appointments matching optional combinable filters.
+     *
+     * @param criteria optional search criteria
+     * @return appointments matching the supplied filters
+     */
+    List<Appointment> findByCriteria(AppointmentSearchCriteria criteria);
 }

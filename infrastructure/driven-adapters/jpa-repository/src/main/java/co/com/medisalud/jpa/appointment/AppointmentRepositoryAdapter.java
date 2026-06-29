@@ -5,10 +5,15 @@ import co.com.medisalud.jpa.helper.AdapterOperations;
 import co.com.medisalud.model.appointment.Appointment;
 import co.com.medisalud.model.appointment.AppointmentStatus;
 import co.com.medisalud.model.appointment.gateways.AppointmentRepository;
+import co.com.medisalud.model.appointmentsearchcriteria.AppointmentSearchCriteria;
+import jakarta.persistence.criteria.Predicate;
 import org.reactivecommons.utils.ObjectMapper;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -82,5 +87,44 @@ public class AppointmentRepositoryAdapter extends AdapterOperations<Appointment,
                 .stream()
                 .map(this::toEntity)
                 .toList();
+    }
+
+    /**
+     * Finds appointments matching optional combinable filters.
+     *
+     * @param criteria optional search criteria
+     * @return appointments matching the supplied filters
+     */
+    @Override
+    public List<Appointment> findByCriteria(AppointmentSearchCriteria criteria) {
+        return repository.findAll(
+                        buildSpecification(criteria),
+                        Sort.by(Sort.Direction.ASC, "dateTime")
+                )
+                .stream()
+                .map(this::toEntity)
+                .toList();
+    }
+
+    private static Specification<AppointmentData> buildSpecification(AppointmentSearchCriteria criteria) {
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (criteria.getDoctorId() != null) {
+                predicates.add(criteriaBuilder.equal(root.get("doctorId"), criteria.getDoctorId()));
+            }
+            if (criteria.getPatientId() != null) {
+                predicates.add(criteriaBuilder.equal(root.get("patientId"), criteria.getPatientId()));
+            }
+            if (criteria.getStatus() != null) {
+                predicates.add(criteriaBuilder.equal(root.get("status"), criteria.getStatus()));
+            }
+            if (criteria.getStartDate() != null) {
+                predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("dateTime"), criteria.getStartDate()));
+            }
+            if (criteria.getEndDate() != null) {
+                predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("dateTime"), criteria.getEndDate()));
+            }
+            return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
+        };
     }
 }

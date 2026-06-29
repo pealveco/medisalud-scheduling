@@ -5,6 +5,7 @@ import co.com.medisalud.model.appointment.AppointmentStatus;
 import co.com.medisalud.model.appointment.exceptions.AppointmentStateConflictException;
 import co.com.medisalud.model.appointment.gateways.AppointmentRepository;
 import co.com.medisalud.model.appointmentcancellation.AppointmentCancellation;
+import co.com.medisalud.model.appointmentsearchcriteria.AppointmentSearchCriteria;
 import co.com.medisalud.model.common.exceptions.ResourceNotFoundException;
 import co.com.medisalud.model.penalty.Penalty;
 import co.com.medisalud.model.penalty.gateways.PenaltyRepository;
@@ -127,6 +128,11 @@ class CancelAppointmentUseCaseTest {
                 UUID doctorId,
                 LocalDateTime startDateTime,
                 LocalDateTime endDateTime) {
+            return List.of();
+        }
+
+        @Override
+        public List<Appointment> findByCriteria(AppointmentSearchCriteria criteria) {
             return List.of();
         }
     }

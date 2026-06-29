@@ -3,6 +3,7 @@ package co.com.medisalud.usecase.getdoctoravailability;
 import co.com.medisalud.model.appointment.Appointment;
 import co.com.medisalud.model.appointment.AppointmentStatus;
 import co.com.medisalud.model.appointment.gateways.AppointmentRepository;
+import co.com.medisalud.model.appointmentsearchcriteria.AppointmentSearchCriteria;
 import co.com.medisalud.model.availabilityday.AvailabilityDay;
 import co.com.medisalud.model.common.exceptions.InvalidDateRangeException;
 import co.com.medisalud.model.common.exceptions.ResourceNotFoundException;
@@ -210,6 +211,11 @@ class GetDoctorAvailabilityUseCaseTest {
                     .filter(appointment -> !appointment.getDateTime().isBefore(startDateTime))
                     .filter(appointment -> appointment.getDateTime().isBefore(endDateTime))
                     .toList();
+        }
+
+        @Override
+        public List<Appointment> findByCriteria(AppointmentSearchCriteria criteria) {
+            return List.of();
         }
     }
 }

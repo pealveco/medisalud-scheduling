@@ -4,6 +4,7 @@ import co.com.medisalud.api.config.CorsConfig;
 import co.com.medisalud.model.appointment.Appointment;
 import co.com.medisalud.model.appointment.AppointmentStatus;
 import co.com.medisalud.model.appointment.gateways.AppointmentRepository;
+import co.com.medisalud.model.appointmentsearchcriteria.AppointmentSearchCriteria;
 import co.com.medisalud.model.doctor.Doctor;
 import co.com.medisalud.model.doctor.gateways.DoctorRepository;
 import co.com.medisalud.model.patient.Patient;
@@ -15,6 +16,7 @@ import co.com.medisalud.usecase.createappointment.CreateAppointmentUseCase;
 import co.com.medisalud.usecase.createdoctor.CreateDoctorUseCase;
 import co.com.medisalud.usecase.createpatient.CreatePatientUseCase;
 import co.com.medisalud.usecase.getdoctoravailability.GetDoctorAvailabilityUseCase;
+import co.com.medisalud.usecase.listappointments.ListAppointmentsUseCase;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
@@ -25,6 +27,7 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -44,7 +47,8 @@ import java.util.concurrent.ConcurrentHashMap;
         CreatePatientUseCase.class,
         CreateAppointmentUseCase.class,
         CancelAppointmentUseCase.class,
-        GetDoctorAvailabilityUseCase.class
+        GetDoctorAvailabilityUseCase.class,
+        ListAppointmentsUseCase.class
 })
 public class TestConfig {
 
@@ -192,6 +196,23 @@ public class TestConfig {
                     .filter(appointment -> AppointmentStatus.SCHEDULED == appointment.getStatus())
                     .filter(appointment -> !appointment.getDateTime().isBefore(startDateTime))
                     .filter(appointment -> appointment.getDateTime().isBefore(endDateTime))
+                    .toList();
+        }
+
+        @Override
+        public List<Appointment> findByCriteria(AppointmentSearchCriteria criteria) {
+            return appointmentsById.values().stream()
+                    .filter(appointment -> criteria.getDoctorId() == null
+                            || criteria.getDoctorId().equals(appointment.getDoctorId()))
+                    .filter(appointment -> criteria.getPatientId() == null
+                            || criteria.getPatientId().equals(appointment.getPatientId()))
+                    .filter(appointment -> criteria.getStatus() == null
+                            || criteria.getStatus() == appointment.getStatus())
+                    .filter(appointment -> criteria.getStartDate() == null
+                            || !appointment.getDateTime().isBefore(criteria.getStartDate()))
+                    .filter(appointment -> criteria.getEndDate() == null
+                            || !appointment.getDateTime().isAfter(criteria.getEndDate()))
+                    .sorted(Comparator.comparing(Appointment::getDateTime))
                     .toList();
         }
     }

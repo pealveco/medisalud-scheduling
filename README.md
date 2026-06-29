@@ -15,6 +15,7 @@ Implementado:
 - `POST /api/appointments` funcional con validaciones de reserva RN-01 a RN-05.
 - `DELETE /api/appointments/{id}` funcional con cancelación y penalización por cancelación tardía.
 - `GET /api/doctors/{id}/availability` funcional con generación de franjas libres por rango.
+- `GET /api/appointments` funcional con filtros opcionales y combinables.
 - Validaciones declarativas para registro de médicos, pacientes y reserva/cancelación de citas.
 - Respuestas de validación con `ProblemDetail` y campo `errors`.
 - Respuestas `400`, `404` y `409` con `ProblemDetail` para rangos inválidos, recursos inexistentes, duplicidades, conflictos de franja, estado inválido de cita y bloqueo de paciente.
@@ -23,7 +24,7 @@ Implementado:
 
 Pendiente:
 
-- Listado y reprogramación de citas.
+- Reprogramación de citas.
 - Handler completo para las excepciones de dominio de las próximas HU, si aparecen nuevos casos.
 - README final con todos los endpoints cuando estén implementados.
 
@@ -435,6 +436,53 @@ Ejemplo con curl:
 curl -i -X DELETE "http://localhost:8080/api/appointments/appointment-uuid"
 ```
 
+### Listar Citas
+
+```http
+GET /api/appointments?doctorId=&patientId=&status=&startDate=&endDate=
+```
+
+Todos los filtros son opcionales y combinables.
+
+Response `200`:
+
+```json
+[
+  {
+    "id": "appointment-uuid",
+    "patientId": "patient-uuid",
+    "doctorId": "doctor-uuid",
+    "dateTime": "2026-07-01T08:00:00",
+    "status": "SCHEDULED"
+  }
+]
+```
+
+Filtros soportados:
+
+- `doctorId`: UUID del médico.
+- `patientId`: UUID del paciente.
+- `status`: `SCHEDULED`, `CANCELLED` o `ATTENDED`.
+- `startDate`: fecha/hora inicial inclusiva en formato ISO 8601, por ejemplo `2026-07-01T00:00:00`.
+- `endDate`: fecha/hora final inclusiva en formato ISO 8601, por ejemplo `2026-07-31T23:59:59`.
+
+Reglas aplicadas:
+
+- Sin filtros retorna todas las citas.
+- Cada filtro individual restringe el resultado.
+- Los filtros combinados retornan la intersección.
+- Si `startDate` es posterior a `endDate`, retorna `400`.
+
+Ejemplos con curl:
+
+```bash
+curl -i "http://localhost:8080/api/appointments"
+
+curl -i "http://localhost:8080/api/appointments?doctorId=a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+curl -i "http://localhost:8080/api/appointments?status=SCHEDULED&startDate=2026-07-01T00:00:00&endDate=2026-07-31T23:59:59"
+```
+
 ## Manejo de Errores
 
 La API usa `ProblemDetail` de Spring Boot, basado en RFC 7807, para mantener respuestas de error consistentes.
@@ -508,14 +556,21 @@ Comandos usados hasta ahora:
 ./gradlew gm --name=AvailabilityDay
 ./gradlew gm --name=AvailabilitySlot
 ./gradlew gm --name=AppointmentCancellation
+./gradlew gm --name=AppointmentSearchCriteria
 ./gradlew guc --name=CreateDoctor
 ./gradlew guc --name=CreatePatient
 ./gradlew guc --name=CreateAppointment
 ./gradlew guc --name=GetDoctorAvailability
 ./gradlew guc --name=CancelAppointment
+./gradlew guc --name=ListAppointments
 ./gradlew gep --type=restmvc
 ./gradlew gda --type=jpa
 ```
+
+## Mejoras Futuras
+
+- Agregar paginación y ordenamiento a `GET /api/appointments` mediante `page`, `size` y `sort`, porque el volumen histórico de citas puede crecer indefinidamente.
+- Definir un rango máximo permitido para `GET /api/doctors/{id}/availability`, por ejemplo 31 días, para evitar consultas demasiado amplias sin paginar una respuesta que normalmente debe verse completa por rango.
 
 ## Notas de Desarrollo
 

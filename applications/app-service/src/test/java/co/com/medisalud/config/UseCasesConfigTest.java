@@ -2,6 +2,7 @@ package co.com.medisalud.config;
 
 import co.com.medisalud.model.appointment.Appointment;
 import co.com.medisalud.model.appointment.gateways.AppointmentRepository;
+import co.com.medisalud.model.appointmentsearchcriteria.AppointmentSearchCriteria;
 import co.com.medisalud.model.doctor.gateways.DoctorRepository;
 import co.com.medisalud.model.patient.gateways.PatientRepository;
 import co.com.medisalud.model.penalty.Penalty;
@@ -109,6 +110,11 @@ class UseCasesConfigTest {
                         UUID doctorId,
                         LocalDateTime startDateTime,
                         LocalDateTime endDateTime) {
+                    return List.of();
+                }
+
+                @Override
+                public List<Appointment> findByCriteria(AppointmentSearchCriteria criteria) {
                     return List.of();
                 }
             };

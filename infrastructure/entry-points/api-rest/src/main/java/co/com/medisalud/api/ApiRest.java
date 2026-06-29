@@ -17,6 +17,7 @@ import co.com.medisalud.api.mapper.DoctorMapper;
 import co.com.medisalud.api.mapper.PatientMapper;
 import co.com.medisalud.model.appointment.Appointment;
 import co.com.medisalud.model.appointmentcancellation.AppointmentCancellation;
+import co.com.medisalud.model.appointmentsearchcriteria.AppointmentSearchCriteria;
 import co.com.medisalud.model.availabilityday.AvailabilityDay;
 import co.com.medisalud.model.doctor.Doctor;
 import co.com.medisalud.model.patient.Patient;
@@ -25,6 +26,7 @@ import co.com.medisalud.usecase.createappointment.CreateAppointmentUseCase;
 import co.com.medisalud.usecase.createdoctor.CreateDoctorUseCase;
 import co.com.medisalud.usecase.createpatient.CreatePatientUseCase;
 import co.com.medisalud.usecase.getdoctoravailability.GetDoctorAvailabilityUseCase;
+import co.com.medisalud.usecase.listappointments.ListAppointmentsUseCase;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
@@ -63,6 +65,7 @@ public class ApiRest {
     private final CreateAppointmentUseCase createAppointmentUseCase;
     private final GetDoctorAvailabilityUseCase getDoctorAvailabilityUseCase;
     private final CancelAppointmentUseCase cancelAppointmentUseCase;
+    private final ListAppointmentsUseCase listAppointmentsUseCase;
     private final AppointmentMapper appointmentMapper;
     private final AvailabilityMapper availabilityMapper;
     private final DoctorMapper doctorMapper;
@@ -167,7 +170,15 @@ public class ApiRest {
             LocalDateTime startDate,
             @RequestParam(name = "endDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
             LocalDateTime endDate) {
-        return notImplemented();
+        AppointmentSearchCriteria criteria = appointmentMapper.toSearchCriteria(
+                doctorId,
+                patientId,
+                status,
+                startDate,
+                endDate
+        );
+        List<Appointment> appointments = listAppointmentsUseCase.listAppointments(criteria);
+        return ResponseEntity.ok(appointmentMapper.toResponse(appointments));
     }
 
     private static <T> ResponseEntity<T> notImplemented() {

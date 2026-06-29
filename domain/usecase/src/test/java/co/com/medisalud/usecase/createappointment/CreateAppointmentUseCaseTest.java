@@ -7,6 +7,7 @@ import co.com.medisalud.model.appointment.exceptions.OutsideWorkingHoursExceptio
 import co.com.medisalud.model.appointment.exceptions.PatientBlockedException;
 import co.com.medisalud.model.appointment.exceptions.SlotConflictException;
 import co.com.medisalud.model.appointment.gateways.AppointmentRepository;
+import co.com.medisalud.model.appointmentsearchcriteria.AppointmentSearchCriteria;
 import co.com.medisalud.model.common.exceptions.ResourceNotFoundException;
 import co.com.medisalud.model.doctor.Doctor;
 import co.com.medisalud.model.doctor.gateways.DoctorRepository;
@@ -21,6 +22,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -303,6 +305,11 @@ class CreateAppointmentUseCaseTest {
                     .filter(appointment -> !appointment.getDateTime().isBefore(startDateTime))
                     .filter(appointment -> appointment.getDateTime().isBefore(endDateTime))
                     .toList();
+        }
+
+        @Override
+        public List<Appointment> findByCriteria(AppointmentSearchCriteria criteria) {
+            return List.of();
         }
     }
 

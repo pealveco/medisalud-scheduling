@@ -2,6 +2,7 @@ package co.com.medisalud.jpa.appointment;
 
 import co.com.medisalud.jpa.entity.AppointmentData;
 import co.com.medisalud.model.appointment.AppointmentStatus;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.query.QueryByExampleExecutor;
@@ -15,7 +16,8 @@ import java.util.UUID;
  * Spring Data repository for appointment persistence records.
  */
 public interface AppointmentJpaRepository extends CrudRepository<AppointmentData, UUID>,
-        QueryByExampleExecutor<AppointmentData> {
+        QueryByExampleExecutor<AppointmentData>,
+        JpaSpecificationExecutor<AppointmentData> {
 
     /**
      * Checks whether a scheduled appointment exists for a doctor and slot.
@@ -64,4 +66,5 @@ public interface AppointmentJpaRepository extends CrudRepository<AppointmentData
             @Param("status") AppointmentStatus status,
             @Param("startDateTime") LocalDateTime startDateTime,
             @Param("endDateTime") LocalDateTime endDateTime);
+
 }

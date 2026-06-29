@@ -501,6 +501,126 @@ class ApiRestTest {
     }
 
     @Test
+    void shouldListAppointmentsWithoutFilters() throws Exception {
+        UUID firstAppointmentId = UUID.randomUUID();
+        UUID secondAppointmentId = UUID.randomUUID();
+        appointmentRepository.save(appointment(firstAppointmentId, UUID.randomUUID(), UUID.randomUUID(),
+                LocalDateTime.of(2026, 9, 1, 8, 0), AppointmentStatus.SCHEDULED));
+        appointmentRepository.save(appointment(secondAppointmentId, UUID.randomUUID(), UUID.randomUUID(),
+                LocalDateTime.of(2026, 9, 1, 8, 30), AppointmentStatus.CANCELLED));
+
+        client.perform(get("/api/appointments")
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == '%s')]".formatted(firstAppointmentId)).exists())
+                .andExpect(jsonPath("$[?(@.id == '%s')]".formatted(secondAppointmentId)).exists());
+    }
+
+    @Test
+    void shouldListAppointmentsByDoctorId() throws Exception {
+        UUID doctorId = UUID.randomUUID();
+        UUID matchingAppointmentId = UUID.randomUUID();
+        UUID excludedAppointmentId = UUID.randomUUID();
+        appointmentRepository.save(appointment(matchingAppointmentId, doctorId, UUID.randomUUID(),
+                LocalDateTime.of(2026, 9, 2, 8, 0), AppointmentStatus.SCHEDULED));
+        appointmentRepository.save(appointment(excludedAppointmentId, UUID.randomUUID(), UUID.randomUUID(),
+                LocalDateTime.of(2026, 9, 2, 8, 30), AppointmentStatus.SCHEDULED));
+
+        client.perform(get("/api/appointments")
+                .param("doctorId", doctorId.toString())
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == '%s')]".formatted(matchingAppointmentId)).exists())
+                .andExpect(jsonPath("$[?(@.id == '%s')]".formatted(excludedAppointmentId)).doesNotExist());
+    }
+
+    @Test
+    void shouldListAppointmentsByPatientId() throws Exception {
+        UUID patientId = UUID.randomUUID();
+        UUID matchingAppointmentId = UUID.randomUUID();
+        UUID excludedAppointmentId = UUID.randomUUID();
+        appointmentRepository.save(appointment(matchingAppointmentId, UUID.randomUUID(), patientId,
+                LocalDateTime.of(2026, 9, 3, 8, 0), AppointmentStatus.SCHEDULED));
+        appointmentRepository.save(appointment(excludedAppointmentId, UUID.randomUUID(), UUID.randomUUID(),
+                LocalDateTime.of(2026, 9, 3, 8, 30), AppointmentStatus.SCHEDULED));
+
+        client.perform(get("/api/appointments")
+                .param("patientId", patientId.toString())
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == '%s')]".formatted(matchingAppointmentId)).exists())
+                .andExpect(jsonPath("$[?(@.id == '%s')]".formatted(excludedAppointmentId)).doesNotExist());
+    }
+
+    @Test
+    void shouldListAppointmentsByStatus() throws Exception {
+        UUID matchingAppointmentId = UUID.randomUUID();
+        UUID excludedAppointmentId = UUID.randomUUID();
+        appointmentRepository.save(appointment(matchingAppointmentId, UUID.randomUUID(), UUID.randomUUID(),
+                LocalDateTime.of(2026, 9, 4, 8, 0), AppointmentStatus.CANCELLED));
+        appointmentRepository.save(appointment(excludedAppointmentId, UUID.randomUUID(), UUID.randomUUID(),
+                LocalDateTime.of(2026, 9, 4, 8, 30), AppointmentStatus.SCHEDULED));
+
+        client.perform(get("/api/appointments")
+                .param("status", "CANCELLED")
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == '%s')]".formatted(matchingAppointmentId)).exists())
+                .andExpect(jsonPath("$[?(@.id == '%s')]".formatted(excludedAppointmentId)).doesNotExist());
+    }
+
+    @Test
+    void shouldListAppointmentsByDateRange() throws Exception {
+        UUID matchingAppointmentId = UUID.randomUUID();
+        UUID excludedAppointmentId = UUID.randomUUID();
+        appointmentRepository.save(appointment(matchingAppointmentId, UUID.randomUUID(), UUID.randomUUID(),
+                LocalDateTime.of(2026, 9, 5, 10, 0), AppointmentStatus.SCHEDULED));
+        appointmentRepository.save(appointment(excludedAppointmentId, UUID.randomUUID(), UUID.randomUUID(),
+                LocalDateTime.of(2026, 9, 6, 10, 0), AppointmentStatus.SCHEDULED));
+
+        client.perform(get("/api/appointments")
+                .param("startDate", "2026-09-05T00:00:00")
+                .param("endDate", "2026-09-05T23:59:59")
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == '%s')]".formatted(matchingAppointmentId)).exists())
+                .andExpect(jsonPath("$[?(@.id == '%s')]".formatted(excludedAppointmentId)).doesNotExist());
+    }
+
+    @Test
+    void shouldListAppointmentsByStatusAndDateRangeIntersection() throws Exception {
+        UUID matchingAppointmentId = UUID.randomUUID();
+        UUID excludedByStatusAppointmentId = UUID.randomUUID();
+        UUID excludedByRangeAppointmentId = UUID.randomUUID();
+        appointmentRepository.save(appointment(matchingAppointmentId, UUID.randomUUID(), UUID.randomUUID(),
+                LocalDateTime.of(2026, 9, 7, 10, 0), AppointmentStatus.SCHEDULED));
+        appointmentRepository.save(appointment(excludedByStatusAppointmentId, UUID.randomUUID(), UUID.randomUUID(),
+                LocalDateTime.of(2026, 9, 7, 11, 0), AppointmentStatus.CANCELLED));
+        appointmentRepository.save(appointment(excludedByRangeAppointmentId, UUID.randomUUID(), UUID.randomUUID(),
+                LocalDateTime.of(2026, 9, 8, 10, 0), AppointmentStatus.SCHEDULED));
+
+        client.perform(get("/api/appointments")
+                .param("status", "SCHEDULED")
+                .param("startDate", "2026-09-07T00:00:00")
+                .param("endDate", "2026-09-07T23:59:59")
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == '%s')]".formatted(matchingAppointmentId)).exists())
+                .andExpect(jsonPath("$[?(@.id == '%s')]".formatted(excludedByStatusAppointmentId)).doesNotExist())
+                .andExpect(jsonPath("$[?(@.id == '%s')]".formatted(excludedByRangeAppointmentId)).doesNotExist());
+    }
+
+    @Test
+    void shouldRejectAppointmentListingWhenDateRangeIsInvalid() throws Exception {
+        client.perform(get("/api/appointments")
+                .param("startDate", "2026-09-08T00:00:00")
+                .param("endDate", "2026-09-07T23:59:59")
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("https://medisalud.com/errors/invalid-date-range"));
+    }
+
+    @Test
     void shouldReturnNotFoundForInvalidPath() throws Exception {
         client.perform(get("/api/invalid")
                 .accept(MediaType.APPLICATION_JSON))
@@ -536,9 +656,18 @@ class ApiRestTest {
             UUID doctorId,
             LocalDateTime dateTime,
             AppointmentStatus status) {
+        return appointment(appointmentId, doctorId, TestConfig.EXISTING_PATIENT_ID, dateTime, status);
+    }
+
+    private static Appointment appointment(
+            UUID appointmentId,
+            UUID doctorId,
+            UUID patientId,
+            LocalDateTime dateTime,
+            AppointmentStatus status) {
         return Appointment.builder()
                 .id(appointmentId)
-                .patientId(TestConfig.EXISTING_PATIENT_ID)
+                .patientId(patientId)
                 .doctorId(doctorId)
                 .dateTime(dateTime)
                 .status(status)
