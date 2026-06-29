@@ -214,6 +214,29 @@ También puedes validar la estructura del scaffold:
 ./gradlew validateStructure
 ```
 
+## Integración Continua
+
+El proyecto incluye GitHub Actions para ejecutar build y tests automáticamente.
+
+Workflow:
+
+```text
+.github/workflows/ci.yml
+```
+
+Se ejecuta en:
+
+- `push` a `develop` y `main`.
+- `pull_request` hacia `develop` y `main`.
+
+Comando ejecutado por CI:
+
+```bash
+./gradlew clean build --no-daemon --no-configuration-cache
+```
+
+Los tests corren con H2 en memoria, por lo que el pipeline no requiere PostgreSQL ni Docker Compose.
+
 ## Endpoints Implementados
 
 ### Registrar Médico
