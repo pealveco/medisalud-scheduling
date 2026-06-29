@@ -572,6 +572,7 @@ curl -i "http://localhost:8080/api/appointments?status=SCHEDULED&startDate=2026-
 - **RN-06:** reprogramación se expone como endpoint propio porque necesita atomicidad. Si la nueva cita falla, la original permanece `SCHEDULED`.
 - **Registro de médicos:** no se fuerza unicidad porque el enunciado no define un identificador natural obligatorio para médicos. En un caso real debería definirse un dato único como licencia o registro profesional.
 - **Edad RN-03:** no se persiste un campo `age`; la edad es derivada de `birthDate`. Si `birthDate` está ausente, la regla se interpreta como edad efectiva `0`.
+- **Formato de teléfono:** la validación acepta exclusivamente dígitos (`^\d{7,}$`), sin guiones ni espacios. Decisión tomada por el contexto colombiano: los celulares tienen 10 dígitos y los fijos tienen 7. Almacenar solo dígitos evita variantes de formato (`555-1001`, `(555) 1001`) que complican búsquedas y comparaciones en base de datos. Los ejemplos del enunciado con guiones (`555-1001`) son datos de referencia ilustrativos, no una especificación de formato.
 
 ## Manejo de Errores
 
