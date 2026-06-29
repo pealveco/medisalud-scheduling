@@ -4,6 +4,7 @@ import co.com.medisalud.model.appointment.Appointment;
 import co.com.medisalud.model.appointment.gateways.AppointmentRepository;
 import co.com.medisalud.model.doctor.gateways.DoctorRepository;
 import co.com.medisalud.model.patient.gateways.PatientRepository;
+import co.com.medisalud.model.penalty.Penalty;
 import co.com.medisalud.model.penalty.gateways.PenaltyRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
@@ -86,6 +87,11 @@ class UseCasesConfigTest {
                 }
 
                 @Override
+                public Appointment findById(UUID id) {
+                    return null;
+                }
+
+                @Override
                 public boolean existsScheduledByDoctorIdAndDateTime(UUID doctorId, LocalDateTime dateTime) {
                     return false;
                 }
@@ -110,7 +116,17 @@ class UseCasesConfigTest {
 
         @Bean
         public PenaltyRepository penaltyRepository() {
-            return (patientId, fromDateTime) -> 0;
+            return new PenaltyRepository() {
+                @Override
+                public Penalty save(Penalty penalty) {
+                    return penalty;
+                }
+
+                @Override
+                public long countByPatientIdAndCreatedAtGreaterThanEqual(UUID patientId, LocalDateTime fromDateTime) {
+                    return 0;
+                }
+            };
         }
 
         @Bean

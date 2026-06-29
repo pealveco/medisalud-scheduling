@@ -3,7 +3,9 @@ package co.com.medisalud.api.mapper;
 import co.com.medisalud.api.dto.request.CreateAppointmentRequest;
 import co.com.medisalud.api.dto.response.AppointmentResponse;
 import co.com.medisalud.api.dto.response.AppointmentStatusDto;
+import co.com.medisalud.api.dto.response.CancelAppointmentResponse;
 import co.com.medisalud.model.appointment.Appointment;
+import co.com.medisalud.model.appointmentcancellation.AppointmentCancellation;
 import org.springframework.stereotype.Component;
 
 /**
@@ -39,6 +41,22 @@ public class AppointmentMapper {
                 appointment.getDoctorId(),
                 appointment.getDateTime(),
                 AppointmentStatusDto.valueOf(appointment.getStatus().name())
+        );
+    }
+
+    /**
+     * Converts an appointment cancellation result into an API response.
+     *
+     * @param cancellation cancellation domain result
+     * @return API cancellation response
+     */
+    public CancelAppointmentResponse toCancelResponse(AppointmentCancellation cancellation) {
+        Appointment appointment = cancellation.getAppointment();
+        return new CancelAppointmentResponse(
+                appointment.getId(),
+                AppointmentStatusDto.valueOf(appointment.getStatus().name()),
+                appointment.getCancelledAt(),
+                cancellation.isPenaltyApplied()
         );
     }
 }

@@ -1,5 +1,6 @@
 package co.com.medisalud.api.exception;
 
+import co.com.medisalud.model.appointment.exceptions.AppointmentStateConflictException;
 import co.com.medisalud.model.appointment.exceptions.InvalidAppointmentSlotException;
 import co.com.medisalud.model.appointment.exceptions.OutsideWorkingHoursException;
 import co.com.medisalud.model.appointment.exceptions.PatientBlockedException;
@@ -36,6 +37,8 @@ public class GlobalExceptionHandler {
     private static final URI SLOT_CONFLICT_TYPE = URI.create("https://medisalud.com/errors/slot-conflict");
     private static final URI PATIENT_BLOCKED_TYPE = URI.create("https://medisalud.com/errors/patient-blocked");
     private static final URI INVALID_DATE_RANGE_TYPE = URI.create("https://medisalud.com/errors/invalid-date-range");
+    private static final URI APPOINTMENT_STATE_CONFLICT_TYPE =
+            URI.create("https://medisalud.com/errors/appointment-state-conflict");
 
     /**
      * Converts request body validation failures to a problem detail response.
@@ -177,6 +180,24 @@ public class GlobalExceptionHandler {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage());
         problemDetail.setType(SLOT_CONFLICT_TYPE);
         problemDetail.setTitle("Slot conflict");
+        problemDetail.setInstance(resolveInstance(request));
+        return problemDetail;
+    }
+
+    /**
+     * Converts appointment state conflicts to conflict responses.
+     *
+     * @param exception domain appointment state exception
+     * @param request current web request
+     * @return problem detail describing the appointment state conflict
+     */
+    @ExceptionHandler(AppointmentStateConflictException.class)
+    public ProblemDetail handleAppointmentStateConflict(
+            AppointmentStateConflictException exception,
+            WebRequest request) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage());
+        problemDetail.setType(APPOINTMENT_STATE_CONFLICT_TYPE);
+        problemDetail.setTitle("Appointment state conflict");
         problemDetail.setInstance(resolveInstance(request));
         return problemDetail;
     }

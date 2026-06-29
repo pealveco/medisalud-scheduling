@@ -8,7 +8,9 @@ import co.com.medisalud.model.doctor.Doctor;
 import co.com.medisalud.model.doctor.gateways.DoctorRepository;
 import co.com.medisalud.model.patient.Patient;
 import co.com.medisalud.model.patient.gateways.PatientRepository;
+import co.com.medisalud.model.penalty.Penalty;
 import co.com.medisalud.model.penalty.gateways.PenaltyRepository;
+import co.com.medisalud.usecase.cancelappointment.CancelAppointmentUseCase;
 import co.com.medisalud.usecase.createappointment.CreateAppointmentUseCase;
 import co.com.medisalud.usecase.createdoctor.CreateDoctorUseCase;
 import co.com.medisalud.usecase.createpatient.CreatePatientUseCase;
@@ -41,6 +43,7 @@ import java.util.concurrent.ConcurrentHashMap;
         CreateDoctorUseCase.class,
         CreatePatientUseCase.class,
         CreateAppointmentUseCase.class,
+        CancelAppointmentUseCase.class,
         GetDoctorAvailabilityUseCase.class
 })
 public class TestConfig {
@@ -67,7 +70,7 @@ public class TestConfig {
 
     @Bean
     public PenaltyRepository penaltyRepository() {
-        return (patientId, fromDateTime) -> BLOCKED_PATIENT_ID.equals(patientId) ? 3 : 0;
+        return new InMemoryPenaltyRepository();
     }
 
     private static class InMemoryDoctorRepository implements DoctorRepository {
@@ -155,6 +158,11 @@ public class TestConfig {
         }
 
         @Override
+        public Appointment findById(UUID id) {
+            return appointmentsById.get(id);
+        }
+
+        @Override
         public boolean existsScheduledByDoctorIdAndDateTime(UUID doctorId, LocalDateTime dateTime) {
             return appointmentsById.values().stream()
                     .anyMatch(appointment -> doctorId.equals(appointment.getDoctorId())
@@ -185,6 +193,28 @@ public class TestConfig {
                     .filter(appointment -> !appointment.getDateTime().isBefore(startDateTime))
                     .filter(appointment -> appointment.getDateTime().isBefore(endDateTime))
                     .toList();
+        }
+    }
+
+    private static class InMemoryPenaltyRepository implements PenaltyRepository {
+
+        private final Map<UUID, Penalty> penaltiesById = new ConcurrentHashMap<>();
+
+        @Override
+        public Penalty save(Penalty penalty) {
+            penaltiesById.put(penalty.getId(), penalty);
+            return penalty;
+        }
+
+        @Override
+        public long countByPatientIdAndCreatedAtGreaterThanEqual(UUID patientId, LocalDateTime fromDateTime) {
+            if (BLOCKED_PATIENT_ID.equals(patientId)) {
+                return 3;
+            }
+            return penaltiesById.values().stream()
+                    .filter(penalty -> patientId.equals(penalty.getPatientId()))
+                    .filter(penalty -> !penalty.getCreatedAt().isBefore(fromDateTime))
+                    .count();
         }
     }
 }

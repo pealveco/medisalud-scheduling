@@ -12,6 +12,7 @@ import co.com.medisalud.model.doctor.Doctor;
 import co.com.medisalud.model.doctor.gateways.DoctorRepository;
 import co.com.medisalud.model.patient.Patient;
 import co.com.medisalud.model.patient.gateways.PatientRepository;
+import co.com.medisalud.model.penalty.Penalty;
 import co.com.medisalud.model.penalty.gateways.PenaltyRepository;
 import org.junit.jupiter.api.Test;
 
@@ -267,6 +268,11 @@ class CreateAppointmentUseCaseTest {
         }
 
         @Override
+        public Appointment findById(UUID id) {
+            return appointmentsById.get(id);
+        }
+
+        @Override
         public boolean existsScheduledByDoctorIdAndDateTime(UUID doctorId, LocalDateTime dateTime) {
             return appointmentsById.values().stream()
                     .anyMatch(appointment -> doctorId.equals(appointment.getDoctorId())
@@ -303,6 +309,11 @@ class CreateAppointmentUseCaseTest {
     private static class InMemoryPenaltyRepository implements PenaltyRepository {
 
         private long penaltyCount;
+
+        @Override
+        public Penalty save(Penalty penalty) {
+            return penalty;
+        }
 
         @Override
         public long countByPatientIdAndCreatedAtGreaterThanEqual(UUID patientId, LocalDateTime fromDateTime) {

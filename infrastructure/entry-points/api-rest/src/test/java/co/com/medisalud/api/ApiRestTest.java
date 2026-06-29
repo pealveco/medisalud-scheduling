@@ -23,6 +23,7 @@ import java.time.temporal.TemporalAdjusters;
 import java.util.Set;
 import java.util.UUID;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -352,6 +353,56 @@ class ApiRestTest {
     }
 
     @Test
+    void shouldCancelScheduledAppointmentWithoutPenalty() throws Exception {
+        UUID appointmentId = UUID.randomUUID();
+        appointmentRepository.save(appointment(appointmentId, TestConfig.EXISTING_DOCTOR_ID,
+                LocalDateTime.now().plusHours(3), AppointmentStatus.SCHEDULED));
+
+        client.perform(delete("/api/appointments/{id}", appointmentId)
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(appointmentId.toString()))
+                .andExpect(jsonPath("$.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.cancelledAt").exists())
+                .andExpect(jsonPath("$.penaltyApplied").value(false));
+    }
+
+    @Test
+    void shouldCancelScheduledAppointmentWithPenaltyWhenCancellationIsLate() throws Exception {
+        UUID appointmentId = UUID.randomUUID();
+        appointmentRepository.save(appointment(appointmentId, TestConfig.EXISTING_DOCTOR_ID,
+                LocalDateTime.now().plusMinutes(90), AppointmentStatus.SCHEDULED));
+
+        client.perform(delete("/api/appointments/{id}", appointmentId)
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(appointmentId.toString()))
+                .andExpect(jsonPath("$.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.cancelledAt").exists())
+                .andExpect(jsonPath("$.penaltyApplied").value(true));
+    }
+
+    @Test
+    void shouldRejectCancellationWhenAppointmentIsAlreadyCancelled() throws Exception {
+        UUID appointmentId = UUID.randomUUID();
+        appointmentRepository.save(appointment(appointmentId, TestConfig.EXISTING_DOCTOR_ID,
+                LocalDateTime.now().plusHours(3), AppointmentStatus.CANCELLED));
+
+        client.perform(delete("/api/appointments/{id}", appointmentId)
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.type").value("https://medisalud.com/errors/appointment-state-conflict"));
+    }
+
+    @Test
+    void shouldReturnNotFoundWhenCancellingMissingAppointment() throws Exception {
+        client.perform(delete("/api/appointments/{id}", UUID.randomUUID())
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.type").value("https://medisalud.com/errors/resource-not-found"));
+    }
+
+    @Test
     void shouldReturnDoctorAvailabilityExcludingOccupiedSlots() throws Exception {
         LocalDate date = LocalDate.of(2026, 7, 1);
         appointmentRepository.save(appointment(TestConfig.EXISTING_DOCTOR_ID, date.atTime(8, 0),
@@ -477,8 +528,16 @@ class ApiRestTest {
     }
 
     private static Appointment appointment(UUID doctorId, LocalDateTime dateTime, AppointmentStatus status) {
+        return appointment(UUID.randomUUID(), doctorId, dateTime, status);
+    }
+
+    private static Appointment appointment(
+            UUID appointmentId,
+            UUID doctorId,
+            LocalDateTime dateTime,
+            AppointmentStatus status) {
         return Appointment.builder()
-                .id(UUID.randomUUID())
+                .id(appointmentId)
                 .patientId(TestConfig.EXISTING_PATIENT_ID)
                 .doctorId(doctorId)
                 .dateTime(dateTime)

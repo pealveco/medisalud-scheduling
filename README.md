@@ -13,17 +13,18 @@ Implementado:
 - `POST /api/doctors` funcional con persistencia JPA.
 - `POST /api/patients` funcional con persistencia JPA y unicidad de documento.
 - `POST /api/appointments` funcional con validaciones de reserva RN-01 a RN-05.
+- `DELETE /api/appointments/{id}` funcional con cancelación y penalización por cancelación tardía.
 - `GET /api/doctors/{id}/availability` funcional con generación de franjas libres por rango.
-- Validaciones declarativas para registro de médicos, pacientes y reserva de citas.
+- Validaciones declarativas para registro de médicos, pacientes y reserva/cancelación de citas.
 - Respuestas de validación con `ProblemDetail` y campo `errors`.
-- Respuestas `400`, `404` y `409` con `ProblemDetail` para rangos inválidos, recursos inexistentes, duplicidades, conflictos de franja y bloqueo de paciente.
+- Respuestas `400`, `404` y `409` con `ProblemDetail` para rangos inválidos, recursos inexistentes, duplicidades, conflictos de franja, estado inválido de cita y bloqueo de paciente.
 - PostgreSQL local con Docker Compose para perfil `local`.
 - H2 en memoria para perfil `test`.
 
 Pendiente:
 
-- Cancelación, listado y reprogramación de citas.
-- Handler completo para las excepciones de dominio de las próximas HU.
+- Listado y reprogramación de citas.
+- Handler completo para las excepciones de dominio de las próximas HU, si aparecen nuevos casos.
 - README final con todos los endpoints cuando estén implementados.
 
 ## Stack
@@ -402,6 +403,38 @@ Ejemplo con curl:
 curl -i "http://localhost:8080/api/doctors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/availability?startDate=2026-07-01&endDate=2026-07-04"
 ```
 
+### Cancelar Cita
+
+```http
+DELETE /api/appointments/{id}
+```
+
+Response `200`:
+
+```json
+{
+  "id": "appointment-uuid",
+  "status": "CANCELLED",
+  "cancelledAt": "2026-07-01T07:15:00",
+  "penaltyApplied": false
+}
+```
+
+Reglas aplicadas:
+
+- La cita debe existir; si no existe, retorna `404`.
+- Solo se pueden cancelar citas `SCHEDULED`.
+- Una cita ya `CANCELLED` retorna `409` con `appointment-state-conflict`.
+- Si faltan menos de 2 horas para la cita, se registra una penalización y `penaltyApplied` retorna `true`.
+- Si faltan 2 horas o más, no se registra penalización y `penaltyApplied` retorna `false`.
+- El caso borde de exactamente 2 horas se interpreta como no penalizable.
+
+Ejemplo con curl:
+
+```bash
+curl -i -X DELETE "http://localhost:8080/api/appointments/appointment-uuid"
+```
+
 ## Manejo de Errores
 
 La API usa `ProblemDetail` de Spring Boot, basado en RFC 7807, para mantener respuestas de error consistentes.
@@ -474,10 +507,12 @@ Comandos usados hasta ahora:
 ./gradlew gm --name=Penalty
 ./gradlew gm --name=AvailabilityDay
 ./gradlew gm --name=AvailabilitySlot
+./gradlew gm --name=AppointmentCancellation
 ./gradlew guc --name=CreateDoctor
 ./gradlew guc --name=CreatePatient
 ./gradlew guc --name=CreateAppointment
 ./gradlew guc --name=GetDoctorAvailability
+./gradlew guc --name=CancelAppointment
 ./gradlew gep --type=restmvc
 ./gradlew gda --type=jpa
 ```

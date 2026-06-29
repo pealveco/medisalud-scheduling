@@ -20,6 +20,14 @@ public interface AppointmentRepository {
     Appointment save(Appointment appointment);
 
     /**
+     * Finds an appointment by identifier.
+     *
+     * @param id appointment identifier
+     * @return appointment when it exists, otherwise null
+     */
+    Appointment findById(UUID id);
+
+    /**
      * Checks whether a doctor already has a scheduled appointment in a date-time slot.
      *
      * @param doctorId doctor identifier

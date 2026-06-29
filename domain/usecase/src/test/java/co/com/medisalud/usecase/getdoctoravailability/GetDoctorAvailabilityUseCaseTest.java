@@ -182,6 +182,11 @@ class GetDoctorAvailabilityUseCaseTest {
         }
 
         @Override
+        public Appointment findById(UUID id) {
+            return appointmentsById.get(id);
+        }
+
+        @Override
         public boolean existsScheduledByDoctorIdAndDateTime(UUID doctorId, LocalDateTime dateTime) {
             return false;
         }

@@ -16,9 +16,11 @@ import co.com.medisalud.api.mapper.AvailabilityMapper;
 import co.com.medisalud.api.mapper.DoctorMapper;
 import co.com.medisalud.api.mapper.PatientMapper;
 import co.com.medisalud.model.appointment.Appointment;
+import co.com.medisalud.model.appointmentcancellation.AppointmentCancellation;
 import co.com.medisalud.model.availabilityday.AvailabilityDay;
 import co.com.medisalud.model.doctor.Doctor;
 import co.com.medisalud.model.patient.Patient;
+import co.com.medisalud.usecase.cancelappointment.CancelAppointmentUseCase;
 import co.com.medisalud.usecase.createappointment.CreateAppointmentUseCase;
 import co.com.medisalud.usecase.createdoctor.CreateDoctorUseCase;
 import co.com.medisalud.usecase.createpatient.CreatePatientUseCase;
@@ -60,6 +62,7 @@ public class ApiRest {
     private final CreatePatientUseCase createPatientUseCase;
     private final CreateAppointmentUseCase createAppointmentUseCase;
     private final GetDoctorAvailabilityUseCase getDoctorAvailabilityUseCase;
+    private final CancelAppointmentUseCase cancelAppointmentUseCase;
     private final AppointmentMapper appointmentMapper;
     private final AvailabilityMapper availabilityMapper;
     private final DoctorMapper doctorMapper;
@@ -127,7 +130,8 @@ public class ApiRest {
      */
     @DeleteMapping(path = "/appointments/{id}")
     public ResponseEntity<CancelAppointmentResponse> cancelAppointment(@PathVariable("id") UUID id) {
-        return notImplemented();
+        AppointmentCancellation cancellation = cancelAppointmentUseCase.cancelAppointment(id);
+        return ResponseEntity.ok(appointmentMapper.toCancelResponse(cancellation));
     }
 
     /**

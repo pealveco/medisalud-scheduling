@@ -1,21 +1,24 @@
 package co.com.medisalud.jpa.penalty;
 
+import co.com.medisalud.jpa.entity.PenaltyData;
+import co.com.medisalud.jpa.helper.AdapterOperations;
+import co.com.medisalud.model.penalty.Penalty;
 import co.com.medisalud.model.penalty.gateways.PenaltyRepository;
+import org.reactivecommons.utils.ObjectMapper;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * JPA adapter for penalty business-rule reads.
+ * JPA adapter that maps penalty domain models to persistence records.
  */
 @Repository
-public class PenaltyRepositoryAdapter implements PenaltyRepository {
+public class PenaltyRepositoryAdapter extends AdapterOperations<Penalty, PenaltyData, UUID, PenaltyJpaRepository>
+        implements PenaltyRepository {
 
-    private final PenaltyJpaRepository repository;
-
-    public PenaltyRepositoryAdapter(PenaltyJpaRepository repository) {
-        this.repository = repository;
+    public PenaltyRepositoryAdapter(PenaltyJpaRepository repository, ObjectMapper mapper) {
+        super(repository, mapper, penaltyData -> mapper.mapBuilder(penaltyData, Penalty.PenaltyBuilder.class).build());
     }
 
     /**
