@@ -1,3 +1,18 @@
+// ArchitectureTest no cubre este módulo, pero Sonar espera el archivo
+// en todos los subproyectos. Esta tarea lo genera vacío si no existe.
+tasks.register('ensureIssuesJson') {
+    def issuesFile = layout.buildDirectory.file('issues.json')
+    outputs.file(issuesFile)
+    doLast {
+        def file = issuesFile.get().asFile
+        file.parentFile.mkdirs()
+        if (!file.exists()) {
+            file.text = '{"issues":[],"rules":[]}'
+        }
+    }
+}
+tasks.named('test') { finalizedBy('ensureIssuesJson') }
+
 dependencies {
     implementation project(':model')
 
