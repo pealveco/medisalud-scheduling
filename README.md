@@ -202,9 +202,13 @@ Swagger UI se genera con `springdoc-openapi` y documenta los endpoints, DTOs de 
 ./gradlew test
 ```
 
-Los tests Spring que requieren perfil usan `@ActiveProfiles("test")`, por lo que se conectan a H2 en memoria.
+Los tests usan el perfil `test` con H2 en memoria (`@ActiveProfiles("test")`).
 
-También puedes validar estructura del scaffold:
+La suite cubre 123 tests: 44 unitarios (casos de uso con mocks), 50 de integración
+(`@SpringBootTest` + MockMvc sobre todos los endpoints) y 29 generados por el scaffold
+de Bancolombia (ArchUnit, JPA, configuración).
+
+También puedes validar la estructura del scaffold:
 
 ```bash
 ./gradlew validateStructure
