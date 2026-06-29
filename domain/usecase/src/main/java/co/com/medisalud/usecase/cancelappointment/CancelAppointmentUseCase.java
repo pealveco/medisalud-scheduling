@@ -10,6 +10,7 @@ import co.com.medisalud.model.penalty.Penalty;
 import co.com.medisalud.model.penalty.gateways.PenaltyRepository;
 import lombok.RequiredArgsConstructor;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -24,6 +25,7 @@ public class CancelAppointmentUseCase {
 
     private final AppointmentRepository appointmentRepository;
     private final PenaltyRepository penaltyRepository;
+    private final Clock clock;
 
     /**
      * Cancels a scheduled appointment and records a penalty when the cancellation is late.
@@ -42,7 +44,7 @@ public class CancelAppointmentUseCase {
             throw new AppointmentStateConflictException("Only scheduled appointments can be cancelled");
         }
 
-        LocalDateTime cancelledAt = LocalDateTime.now();
+        LocalDateTime cancelledAt = LocalDateTime.now(clock);
         boolean penaltyApplied = shouldApplyPenalty(appointment, cancelledAt);
         Appointment cancelledAppointment = appointment.toBuilder()
                 .status(AppointmentStatus.CANCELLED)

@@ -25,6 +25,7 @@ import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Comparator;
@@ -54,6 +55,7 @@ public class TestConfig {
 
     static final String UNEXPECTED_ERROR_DOCTOR_NAME = "Trigger Failure";
     static final UUID EXISTING_DOCTOR_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    static final UUID OTHER_DOCTOR_ID = UUID.fromString("55555555-5555-5555-5555-555555555555");
     static final UUID EXISTING_PATIENT_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
     static final UUID BLOCKED_PATIENT_ID = UUID.fromString("33333333-3333-3333-3333-333333333333");
     static final UUID OTHER_PATIENT_ID = UUID.fromString("44444444-4444-4444-4444-444444444444");
@@ -78,6 +80,11 @@ public class TestConfig {
         return new InMemoryPenaltyRepository();
     }
 
+    @Bean
+    public Clock clock() {
+        return Clock.systemDefaultZone();
+    }
+
     private static class InMemoryDoctorRepository implements DoctorRepository {
 
         private final Map<UUID, Doctor> doctorsById = new ConcurrentHashMap<>();
@@ -87,6 +94,11 @@ public class TestConfig {
                     .id(EXISTING_DOCTOR_ID)
                     .fullName("Carlos Mejia")
                     .specialty("Cardiology")
+                    .build());
+            doctorsById.put(OTHER_DOCTOR_ID, Doctor.builder()
+                    .id(OTHER_DOCTOR_ID)
+                    .fullName("Andrea Torres")
+                    .specialty("Pediatrics")
                     .build());
         }
 

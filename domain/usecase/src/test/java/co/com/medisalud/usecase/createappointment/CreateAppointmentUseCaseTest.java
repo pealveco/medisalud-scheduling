@@ -17,10 +17,13 @@ import co.com.medisalud.model.penalty.Penalty;
 import co.com.medisalud.model.penalty.gateways.PenaltyRepository;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,8 +37,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class CreateAppointmentUseCaseTest {
 
     private static final UUID DOCTOR_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    private static final UUID OTHER_DOCTOR_ID = UUID.fromString("44444444-4444-4444-4444-444444444444");
     private static final UUID PATIENT_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
     private static final UUID OTHER_PATIENT_ID = UUID.fromString("33333333-3333-3333-3333-333333333333");
+    private static final LocalDateTime NOW = LocalDateTime.of(2026, 6, 1, 10, 0);
+    private static final Clock FIXED_CLOCK = Clock.fixed(NOW.toInstant(ZoneOffset.UTC), ZoneOffset.UTC);
 
     @Test
     void shouldCreateScheduledAppointmentWhenSlotIsAvailable() {
@@ -84,6 +90,14 @@ class CreateAppointmentUseCaseTest {
     }
 
     @Test
+    void shouldRejectWhenWeekdaySlotStartsBeforeOpeningTime() {
+        TestContext context = TestContext.withDefaults();
+        Appointment appointment = appointment(PATIENT_ID, DOCTOR_ID, LocalDateTime.of(2026, 7, 1, 7, 30));
+
+        assertThrows(OutsideWorkingHoursException.class, () -> context.useCase.createAppointment(appointment));
+    }
+
+    @Test
     void shouldRejectWhenSaturdaySlotStartsAtClosingTime() {
         TestContext context = TestContext.withDefaults();
         Appointment appointment = appointment(PATIENT_ID, DOCTOR_ID, LocalDateTime.of(2026, 7, 4, 13, 0));
@@ -110,7 +124,7 @@ class CreateAppointmentUseCaseTest {
     @Test
     void shouldRejectWhenPatientBirthDateIsFuture() {
         TestContext context = TestContext.withDefaults();
-        context.patientRepository.save(patient(PATIENT_ID).toBuilder().birthDate(LocalDate.now().plusDays(1)).build());
+        context.patientRepository.save(patient(PATIENT_ID).toBuilder().birthDate(NOW.toLocalDate().plusDays(1)).build());
         Appointment appointment = appointment(PATIENT_ID, DOCTOR_ID, LocalDateTime.of(2026, 7, 1, 8, 0));
 
         assertThrows(InvalidAppointmentSlotException.class, () -> context.useCase.createAppointment(appointment));
@@ -142,6 +156,22 @@ class CreateAppointmentUseCaseTest {
     }
 
     @Test
+    void shouldAllowWhenDoctorHasAppointmentInImmediatelyNextSlot() {
+        TestContext context = TestContext.withDefaults();
+        context.appointmentRepository.save(appointment(OTHER_PATIENT_ID, DOCTOR_ID, LocalDateTime.of(2026, 7, 1, 8, 0))
+                .toBuilder()
+                .id(UUID.randomUUID())
+                .status(AppointmentStatus.SCHEDULED)
+                .build());
+        Appointment appointment = appointment(PATIENT_ID, DOCTOR_ID, LocalDateTime.of(2026, 7, 1, 8, 30));
+
+        Appointment result = context.useCase.createAppointment(appointment);
+
+        assertEquals(AppointmentStatus.SCHEDULED, result.getStatus());
+        assertEquals(LocalDateTime.of(2026, 7, 1, 8, 30), result.getDateTime());
+    }
+
+    @Test
     void shouldRejectWhenPatientAlreadyHasAppointmentWithSameDoctorAtSlot() {
         TestContext context = TestContext.withDefaults();
         LocalDateTime dateTime = LocalDateTime.of(2026, 7, 1, 8, 0);
@@ -156,12 +186,46 @@ class CreateAppointmentUseCaseTest {
     }
 
     @Test
+    void shouldAllowWhenPatientHasAppointmentWithDifferentDoctorAtSameSlot() {
+        TestContext context = TestContext.withDefaults();
+        LocalDateTime dateTime = LocalDateTime.of(2026, 7, 1, 8, 0);
+        context.appointmentRepository.save(appointment(PATIENT_ID, DOCTOR_ID, dateTime)
+                .toBuilder()
+                .id(UUID.randomUUID())
+                .status(AppointmentStatus.SCHEDULED)
+                .build());
+        Appointment appointment = appointment(PATIENT_ID, OTHER_DOCTOR_ID, dateTime);
+
+        Appointment result = context.useCase.createAppointment(appointment);
+
+        assertEquals(AppointmentStatus.SCHEDULED, result.getStatus());
+        assertEquals(PATIENT_ID, result.getPatientId());
+        assertEquals(OTHER_DOCTOR_ID, result.getDoctorId());
+        assertEquals(dateTime, result.getDateTime());
+    }
+
+    @Test
     void shouldRejectWhenPatientHasThreeRecentPenalties() {
         TestContext context = TestContext.withDefaults();
-        context.penaltyRepository.penaltyCount = 3;
+        context.penaltyRepository.save(penalty(PATIENT_ID, NOW.minusDays(1)));
+        context.penaltyRepository.save(penalty(PATIENT_ID, NOW.minusDays(10)));
+        context.penaltyRepository.save(penalty(PATIENT_ID, NOW.minusDays(30)));
         Appointment appointment = appointment(PATIENT_ID, DOCTOR_ID, LocalDateTime.of(2026, 7, 1, 8, 0));
 
         assertThrows(PatientBlockedException.class, () -> context.useCase.createAppointment(appointment));
+    }
+
+    @Test
+    void shouldAllowWhenThirdPenaltyIsOutsideThirtyDayWindow() {
+        TestContext context = TestContext.withDefaults();
+        context.penaltyRepository.save(penalty(PATIENT_ID, NOW.minusDays(1)));
+        context.penaltyRepository.save(penalty(PATIENT_ID, NOW.minusDays(10)));
+        context.penaltyRepository.save(penalty(PATIENT_ID, NOW.minusDays(31)));
+        Appointment appointment = appointment(PATIENT_ID, DOCTOR_ID, LocalDateTime.of(2026, 7, 1, 8, 0));
+
+        Appointment result = context.useCase.createAppointment(appointment);
+
+        assertEquals(AppointmentStatus.SCHEDULED, result.getStatus());
     }
 
     private static Appointment appointment(UUID patientId, UUID doctorId, LocalDateTime dateTime) {
@@ -169,6 +233,15 @@ class CreateAppointmentUseCaseTest {
                 .patientId(patientId)
                 .doctorId(doctorId)
                 .dateTime(dateTime)
+                .build();
+    }
+
+    private static Penalty penalty(UUID patientId, LocalDateTime createdAt) {
+        return Penalty.builder()
+                .id(UUID.randomUUID())
+                .patientId(patientId)
+                .appointmentId(UUID.randomUUID())
+                .createdAt(createdAt)
                 .build();
     }
 
@@ -209,12 +282,14 @@ class CreateAppointmentUseCaseTest {
                 appointmentRepository,
                 doctorRepository,
                 patientRepository,
-                penaltyRepository
+                penaltyRepository,
+                FIXED_CLOCK
         );
 
         private static TestContext withDefaults() {
             TestContext context = new TestContext();
             context.doctorRepository.save(doctor(DOCTOR_ID));
+            context.doctorRepository.save(doctor(OTHER_DOCTOR_ID));
             context.patientRepository.save(patient(PATIENT_ID));
             context.patientRepository.save(patient(OTHER_PATIENT_ID).toBuilder().documentId("987654321").build());
             return context;
@@ -315,16 +390,20 @@ class CreateAppointmentUseCaseTest {
 
     private static class InMemoryPenaltyRepository implements PenaltyRepository {
 
-        private long penaltyCount;
+        private final List<Penalty> penalties = new ArrayList<>();
 
         @Override
         public Penalty save(Penalty penalty) {
+            penalties.add(penalty);
             return penalty;
         }
 
         @Override
         public long countByPatientIdAndCreatedAtGreaterThanEqual(UUID patientId, LocalDateTime fromDateTime) {
-            return penaltyCount;
+            return penalties.stream()
+                    .filter(penalty -> patientId.equals(penalty.getPatientId()))
+                    .filter(penalty -> !penalty.getCreatedAt().isBefore(fromDateTime))
+                    .count();
         }
     }
 }

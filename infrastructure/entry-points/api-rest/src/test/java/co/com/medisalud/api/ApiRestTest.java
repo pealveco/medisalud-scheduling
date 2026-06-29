@@ -344,6 +344,19 @@ class ApiRestTest {
     }
 
     @Test
+    void shouldRejectAppointmentBeforeOpeningTime() throws Exception {
+        String request = appointmentRequest(TestConfig.EXISTING_PATIENT_ID, TestConfig.EXISTING_DOCTOR_ID,
+                nextWorkingDateTime(LocalTime.of(7, 30)));
+
+        client.perform(post("/api/appointments")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(request))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("https://medisalud.com/errors/outside-working-hours"));
+    }
+
+    @Test
     void shouldRejectAppointmentWhenDoctorSlotIsAlreadyTaken() throws Exception {
         LocalDateTime dateTime = nextWorkingDateTime(LocalTime.of(10, 0));
         String firstRequest = appointmentRequest(TestConfig.EXISTING_PATIENT_ID, TestConfig.EXISTING_DOCTOR_ID, dateTime);
@@ -361,6 +374,86 @@ class ApiRestTest {
                 .content(secondRequest))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.type").value("https://medisalud.com/errors/slot-conflict"));
+    }
+
+    @Test
+    void shouldCreateAppointmentWhenDoctorHasAppointmentInImmediatelyNextSlot() throws Exception {
+        LocalDateTime firstSlot = nextWorkingDateTime(LocalTime.of(12, 0));
+        LocalDateTime nextSlot = firstSlot.plusMinutes(30);
+        String firstRequest = appointmentRequest(TestConfig.EXISTING_PATIENT_ID, TestConfig.EXISTING_DOCTOR_ID, firstSlot);
+        String secondRequest = appointmentRequest(TestConfig.OTHER_PATIENT_ID, TestConfig.EXISTING_DOCTOR_ID, nextSlot);
+
+        client.perform(post("/api/appointments")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(firstRequest))
+                .andExpect(status().isCreated());
+
+        client.perform(post("/api/appointments")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(secondRequest))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.dateTime").value(DATE_TIME_FORMATTER.format(nextSlot)))
+                .andExpect(jsonPath("$.status").value("SCHEDULED"));
+    }
+
+    @Test
+    void shouldCreateAppointmentWhenPatientBirthDateIsMissing() throws Exception {
+        LocalDateTime dateTime = nextWorkingDateTime(LocalTime.of(14, 0));
+        String request = appointmentRequest(TestConfig.OTHER_PATIENT_ID, TestConfig.EXISTING_DOCTOR_ID, dateTime);
+
+        client.perform(post("/api/appointments")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(request))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.patientId").value(TestConfig.OTHER_PATIENT_ID.toString()))
+                .andExpect(jsonPath("$.dateTime").value(DATE_TIME_FORMATTER.format(dateTime)))
+                .andExpect(jsonPath("$.status").value("SCHEDULED"));
+    }
+
+    @Test
+    void shouldRejectAppointmentWhenPatientAlreadyHasAppointmentWithSameDoctorAtSlot() throws Exception {
+        LocalDateTime dateTime = nextWorkingDateTime(LocalTime.of(15, 0));
+        String firstRequest = appointmentRequest(TestConfig.EXISTING_PATIENT_ID, TestConfig.EXISTING_DOCTOR_ID, dateTime);
+        String secondRequest = appointmentRequest(TestConfig.EXISTING_PATIENT_ID, TestConfig.EXISTING_DOCTOR_ID, dateTime);
+
+        client.perform(post("/api/appointments")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(firstRequest))
+                .andExpect(status().isCreated());
+
+        client.perform(post("/api/appointments")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(secondRequest))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.type").value("https://medisalud.com/errors/slot-conflict"));
+    }
+
+    @Test
+    void shouldCreateAppointmentWhenPatientHasAppointmentWithDifferentDoctorAtSameSlot() throws Exception {
+        LocalDateTime dateTime = nextWorkingDateTime(LocalTime.of(16, 0));
+        String firstRequest = appointmentRequest(TestConfig.EXISTING_PATIENT_ID, TestConfig.EXISTING_DOCTOR_ID, dateTime);
+        String secondRequest = appointmentRequest(TestConfig.EXISTING_PATIENT_ID, TestConfig.OTHER_DOCTOR_ID, dateTime);
+
+        client.perform(post("/api/appointments")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(firstRequest))
+                .andExpect(status().isCreated());
+
+        client.perform(post("/api/appointments")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(secondRequest))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.patientId").value(TestConfig.EXISTING_PATIENT_ID.toString()))
+                .andExpect(jsonPath("$.doctorId").value(TestConfig.OTHER_DOCTOR_ID.toString()))
+                .andExpect(jsonPath("$.dateTime").value(DATE_TIME_FORMATTER.format(dateTime)))
+                .andExpect(jsonPath("$.status").value("SCHEDULED"));
     }
 
     @Test

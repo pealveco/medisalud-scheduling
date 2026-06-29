@@ -11,7 +11,9 @@ import co.com.medisalud.model.penalty.Penalty;
 import co.com.medisalud.model.penalty.gateways.PenaltyRepository;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,7 +21,6 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -28,31 +29,46 @@ class CancelAppointmentUseCaseTest {
     private static final UUID APPOINTMENT_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID PATIENT_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
     private static final UUID DOCTOR_ID = UUID.fromString("33333333-3333-3333-3333-333333333333");
+    private static final LocalDateTime NOW = LocalDateTime.of(2026, 7, 1, 10, 0);
+    private static final Clock FIXED_CLOCK = Clock.fixed(NOW.toInstant(ZoneOffset.UTC), ZoneOffset.UTC);
 
     @Test
     void shouldCancelScheduledAppointmentWithoutPenaltyWhenCancellationIsAtLeastTwoHoursBefore() {
-        TestContext context = TestContext.withAppointment(LocalDateTime.now().plusHours(3), AppointmentStatus.SCHEDULED);
+        TestContext context = TestContext.withAppointment(NOW.plusHours(3), AppointmentStatus.SCHEDULED);
 
         AppointmentCancellation result = context.useCase.cancelAppointment(APPOINTMENT_ID);
 
         assertEquals(AppointmentStatus.CANCELLED, result.getAppointment().getStatus());
-        assertNotNull(result.getAppointment().getCancelledAt());
+        assertEquals(NOW, result.getAppointment().getCancelledAt());
+        assertFalse(result.isPenaltyApplied());
+        assertEquals(0, context.penaltyRepository.penalties.size());
+    }
+
+    @Test
+    void shouldNotApplyPenaltyWhenCancellationIsExactlyTwoHoursBefore() {
+        TestContext context = TestContext.withAppointment(NOW.plusHours(2), AppointmentStatus.SCHEDULED);
+
+        AppointmentCancellation result = context.useCase.cancelAppointment(APPOINTMENT_ID);
+
+        assertEquals(AppointmentStatus.CANCELLED, result.getAppointment().getStatus());
+        assertEquals(NOW, result.getAppointment().getCancelledAt());
         assertFalse(result.isPenaltyApplied());
         assertEquals(0, context.penaltyRepository.penalties.size());
     }
 
     @Test
     void shouldCancelScheduledAppointmentWithPenaltyWhenCancellationIsLate() {
-        TestContext context = TestContext.withAppointment(LocalDateTime.now().plusMinutes(90), AppointmentStatus.SCHEDULED);
+        TestContext context = TestContext.withAppointment(NOW.plusMinutes(90), AppointmentStatus.SCHEDULED);
 
         AppointmentCancellation result = context.useCase.cancelAppointment(APPOINTMENT_ID);
 
         assertEquals(AppointmentStatus.CANCELLED, result.getAppointment().getStatus());
-        assertNotNull(result.getAppointment().getCancelledAt());
+        assertEquals(NOW, result.getAppointment().getCancelledAt());
         assertTrue(result.isPenaltyApplied());
         assertEquals(1, context.penaltyRepository.penalties.size());
         assertEquals(PATIENT_ID, context.penaltyRepository.penalties.get(0).getPatientId());
         assertEquals(APPOINTMENT_ID, context.penaltyRepository.penalties.get(0).getAppointmentId());
+        assertEquals(NOW, context.penaltyRepository.penalties.get(0).getCreatedAt());
     }
 
     @Test
@@ -64,7 +80,7 @@ class CancelAppointmentUseCaseTest {
 
     @Test
     void shouldRejectWhenAppointmentIsAlreadyCancelled() {
-        TestContext context = TestContext.withAppointment(LocalDateTime.now().plusHours(3), AppointmentStatus.CANCELLED);
+        TestContext context = TestContext.withAppointment(NOW.plusHours(3), AppointmentStatus.CANCELLED);
 
         assertThrows(AppointmentStateConflictException.class, () -> context.useCase.cancelAppointment(APPOINTMENT_ID));
     }
@@ -85,7 +101,8 @@ class CancelAppointmentUseCaseTest {
         private final InMemoryPenaltyRepository penaltyRepository = new InMemoryPenaltyRepository();
         private final CancelAppointmentUseCase useCase = new CancelAppointmentUseCase(
                 appointmentRepository,
-                penaltyRepository
+                penaltyRepository,
+                FIXED_CLOCK
         );
 
         private static TestContext withAppointment(LocalDateTime dateTime, AppointmentStatus status) {

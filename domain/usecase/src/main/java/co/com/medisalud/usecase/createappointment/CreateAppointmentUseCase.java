@@ -15,6 +15,7 @@ import co.com.medisalud.model.penalty.gateways.PenaltyRepository;
 import co.com.medisalud.usecase.common.WorkingHoursPolicy;
 import lombok.RequiredArgsConstructor;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -34,6 +35,7 @@ public class CreateAppointmentUseCase {
     private final DoctorRepository doctorRepository;
     private final PatientRepository patientRepository;
     private final PenaltyRepository penaltyRepository;
+    private final Clock clock;
 
     /**
      * Schedules an appointment after validating existence, working hours, conflicts, and patient block status.
@@ -71,14 +73,14 @@ public class CreateAppointmentUseCase {
         return appointmentRepository.save(appointmentToSave);
     }
 
-    private static void validatePatientBirthDate(Patient patient) {
-        if (patient.getBirthDate() != null && patient.getBirthDate().isAfter(LocalDate.now())) {
+    private void validatePatientBirthDate(Patient patient) {
+        if (patient.getBirthDate() != null && patient.getBirthDate().isAfter(LocalDate.now(clock))) {
             throw new InvalidAppointmentSlotException("Patient birth date cannot be in the future");
         }
     }
 
     private void validatePatientBlock(UUID patientId) {
-        LocalDateTime lowerBound = LocalDateTime.now().minusDays(PENALTY_WINDOW_DAYS);
+        LocalDateTime lowerBound = LocalDateTime.now(clock).minusDays(PENALTY_WINDOW_DAYS);
         long recentPenalties = penaltyRepository.countByPatientIdAndCreatedAtGreaterThanEqual(patientId, lowerBound);
         if (recentPenalties >= MIN_PENALTIES_TO_BLOCK_PATIENT) {
             throw new PatientBlockedException(patientId);

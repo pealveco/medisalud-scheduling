@@ -345,6 +345,7 @@ Validaciones de negocio:
 Decisión de negocio:
 
 - RN-04 se implementa de forma literal: el conflicto de paciente aplica para mismo paciente + mismo médico + misma franja. El mismo paciente con otro médico en la misma franja no se bloquea por esta regla.
+- RN-03 no persiste ni expone un campo `age`, porque la edad es un dato derivado de `birthDate`. Cuando `birthDate` está ausente, la regla se interpreta como edad efectiva `0` y el agendamiento se permite.
 - Para el MVP, los festivos se calculan localmente usando el calendario de Colombia. Los festivos móviles se derivan del Domingo de Pascua mediante un cálculo interno, porque cambian cada año. En un producto real convendría externalizar esta fuente mediante una tabla administrable o una integración sincronizada con una API de festivos, evitando depender de una API externa en tiempo real durante la reserva.
 
 Ejemplo con curl:
