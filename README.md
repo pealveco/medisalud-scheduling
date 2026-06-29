@@ -13,15 +13,16 @@ Implementado:
 - `POST /api/doctors` funcional con persistencia JPA.
 - `POST /api/patients` funcional con persistencia JPA y unicidad de documento.
 - `POST /api/appointments` funcional con validaciones de reserva RN-01 a RN-05.
+- `GET /api/doctors/{id}/availability` funcional con generación de franjas libres por rango.
 - Validaciones declarativas para registro de médicos, pacientes y reserva de citas.
 - Respuestas de validación con `ProblemDetail` y campo `errors`.
-- Respuestas `404` y `409` con `ProblemDetail` para recursos inexistentes, duplicidades, conflictos de franja y bloqueo de paciente.
+- Respuestas `400`, `404` y `409` con `ProblemDetail` para rangos inválidos, recursos inexistentes, duplicidades, conflictos de franja y bloqueo de paciente.
 - PostgreSQL local con Docker Compose para perfil `local`.
 - H2 en memoria para perfil `test`.
 
 Pendiente:
 
-- Disponibilidad, cancelación, listado y reprogramación de citas.
+- Cancelación, listado y reprogramación de citas.
 - Handler completo para las excepciones de dominio de las próximas HU.
 - README final con todos los endpoints cuando estén implementados.
 
@@ -55,6 +56,7 @@ Reglas principales:
 - Los entry points usan DTOs explícitos.
 - La persistencia se implementa en el driven adapter JPA.
 - Los use cases se generan con el scaffold y se registran mediante `UseCasesConfig`.
+- La política de horario laboral RN-01 está centralizada en `WorkingHoursPolicy`, reutilizada por reserva y disponibilidad.
 
 ## Perfiles Spring
 
@@ -357,6 +359,49 @@ curl -i -X POST http://localhost:8080/api/appointments \
   }"
 ```
 
+### Consultar Disponibilidad de Médico
+
+```http
+GET /api/doctors/{id}/availability?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
+```
+
+Response `200`:
+
+```json
+[
+  {
+    "date": "2026-07-01",
+    "slots": [
+      {
+        "start": "08:00:00",
+        "end": "08:30:00"
+      },
+      {
+        "start": "08:30:00",
+        "end": "09:00:00"
+      }
+    ]
+  }
+]
+```
+
+Reglas aplicadas:
+
+- El médico debe existir; si no existe, retorna `404`.
+- `startDate` y `endDate` son obligatorios.
+- `startDate` debe ser menor o igual a `endDate`; si no, retorna `400`.
+- Los días laborales generan franjas de 30 minutos entre `08:00` y `18:00`.
+- Los sábados generan franjas de 30 minutos entre `08:00` y `13:00`.
+- Domingos y festivos no aportan días ni franjas.
+- Las citas `SCHEDULED` del médico se excluyen de la respuesta.
+- Citas `CANCELLED` o de otros médicos no bloquean disponibilidad.
+
+Ejemplo con curl:
+
+```bash
+curl -i "http://localhost:8080/api/doctors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/availability?startDate=2026-07-01&endDate=2026-07-04"
+```
+
 ## Manejo de Errores
 
 La API usa `ProblemDetail` de Spring Boot, basado en RFC 7807, para mantener respuestas de error consistentes.
@@ -372,7 +417,7 @@ Campos estándar:
 
 Las URLs usadas en `type`, por ejemplo `https://medisalud.com/errors/patient-document-already-exists`, no tienen que existir como páginas reales durante el MVP. Funcionan como identificadores estables del tipo de problema.
 
-Las validaciones de entrada se manejan con Bean Validation en los request DTOs y un handler global con `ProblemDetail`.
+Las validaciones de entrada se manejan con Bean Validation en los request DTOs y un handler global con `ProblemDetail`. Los parámetros requeridos de query/path y los errores de conversión de tipo también responden con el mismo contrato de validación.
 
 Ejemplo `400`:
 
@@ -427,9 +472,12 @@ Comandos usados hasta ahora:
 ./gradlew gm --name=Patient
 ./gradlew gm --name=Appointment
 ./gradlew gm --name=Penalty
+./gradlew gm --name=AvailabilityDay
+./gradlew gm --name=AvailabilitySlot
 ./gradlew guc --name=CreateDoctor
 ./gradlew guc --name=CreatePatient
 ./gradlew guc --name=CreateAppointment
+./gradlew guc --name=GetDoctorAvailability
 ./gradlew gep --type=restmvc
 ./gradlew gda --type=jpa
 ```

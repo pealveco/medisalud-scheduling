@@ -1,5 +1,7 @@
 package co.com.medisalud.api.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+
 import java.time.LocalDate;
 import java.util.List;
 
@@ -10,6 +12,7 @@ import java.util.List;
  * @param slots free slots for the date
  */
 public record AvailabilityDayResponse(
+        @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
         LocalDate date,
         List<SlotResponse> slots
 ) {

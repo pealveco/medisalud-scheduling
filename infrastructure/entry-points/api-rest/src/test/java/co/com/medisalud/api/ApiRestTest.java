@@ -1,5 +1,8 @@
 package co.com.medisalud.api;
 
+import co.com.medisalud.model.appointment.Appointment;
+import co.com.medisalud.model.appointment.AppointmentStatus;
+import co.com.medisalud.model.appointment.gateways.AppointmentRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +37,9 @@ class ApiRestTest {
 
     @Autowired
     private WebApplicationContext context;
+
+    @Autowired
+    private AppointmentRepository appointmentRepository;
 
     private MockMvc client;
 
@@ -346,6 +352,104 @@ class ApiRestTest {
     }
 
     @Test
+    void shouldReturnDoctorAvailabilityExcludingOccupiedSlots() throws Exception {
+        LocalDate date = LocalDate.of(2026, 7, 1);
+        appointmentRepository.save(appointment(TestConfig.EXISTING_DOCTOR_ID, date.atTime(8, 0),
+                AppointmentStatus.SCHEDULED));
+        appointmentRepository.save(appointment(TestConfig.EXISTING_DOCTOR_ID, date.atTime(8, 30),
+                AppointmentStatus.CANCELLED));
+
+        client.perform(get("/api/doctors/{id}/availability", TestConfig.EXISTING_DOCTOR_ID)
+                .param("startDate", date.toString())
+                .param("endDate", date.toString())
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].date").value(date.toString()))
+                .andExpect(jsonPath("$[0].slots.length()").value(19))
+                .andExpect(jsonPath("$[0].slots[0].start").value("08:30:00"))
+                .andExpect(jsonPath("$[0].slots[0].end").value("09:00:00"));
+    }
+
+    @Test
+    void shouldReturnSaturdayAvailabilityOnlyUntilThirteen() throws Exception {
+        LocalDate date = LocalDate.of(2026, 7, 4);
+
+        client.perform(get("/api/doctors/{id}/availability", TestConfig.EXISTING_DOCTOR_ID)
+                .param("startDate", date.toString())
+                .param("endDate", date.toString())
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].date").value(date.toString()))
+                .andExpect(jsonPath("$[0].slots.length()").value(10))
+                .andExpect(jsonPath("$[0].slots[0].start").value("08:00:00"))
+                .andExpect(jsonPath("$[0].slots[9].start").value("12:30:00"))
+                .andExpect(jsonPath("$[0].slots[9].end").value("13:00:00"));
+    }
+
+    @Test
+    void shouldSkipSundayInDoctorAvailability() throws Exception {
+        LocalDate date = LocalDate.of(2026, 7, 5);
+
+        client.perform(get("/api/doctors/{id}/availability", TestConfig.EXISTING_DOCTOR_ID)
+                .param("startDate", date.toString())
+                .param("endDate", date.toString())
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void shouldRejectDoctorAvailabilityWhenDateRangeIsInvalid() throws Exception {
+        client.perform(get("/api/doctors/{id}/availability", TestConfig.EXISTING_DOCTOR_ID)
+                .param("startDate", "2026-07-02")
+                .param("endDate", "2026-07-01")
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("https://medisalud.com/errors/invalid-date-range"));
+    }
+
+    @Test
+    void shouldRejectDoctorAvailabilityWhenStartDateIsMissing() throws Exception {
+        client.perform(get("/api/doctors/{id}/availability", TestConfig.EXISTING_DOCTOR_ID)
+                .param("endDate", "2026-07-01")
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("https://medisalud.com/errors/validation"))
+                .andExpect(jsonPath("$.errors[?(@.field == 'startDate')]").exists());
+    }
+
+    @Test
+    void shouldRejectDoctorAvailabilityWhenEndDateIsMissing() throws Exception {
+        client.perform(get("/api/doctors/{id}/availability", TestConfig.EXISTING_DOCTOR_ID)
+                .param("startDate", "2026-07-01")
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("https://medisalud.com/errors/validation"))
+                .andExpect(jsonPath("$.errors[?(@.field == 'endDate')]").exists());
+    }
+
+    @Test
+    void shouldRejectDoctorAvailabilityWhenDateFormatIsInvalid() throws Exception {
+        client.perform(get("/api/doctors/{id}/availability", TestConfig.EXISTING_DOCTOR_ID)
+                .param("startDate", "01-07-2026")
+                .param("endDate", "2026-07-01")
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("https://medisalud.com/errors/validation"))
+                .andExpect(jsonPath("$.errors[?(@.field == 'startDate')]").exists());
+    }
+
+    @Test
+    void shouldReturnNotFoundWhenDoctorAvailabilityDoctorDoesNotExist() throws Exception {
+        client.perform(get("/api/doctors/{id}/availability", UUID.randomUUID())
+                .param("startDate", "2026-07-01")
+                .param("endDate", "2026-07-01")
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.type").value("https://medisalud.com/errors/resource-not-found"));
+    }
+
+    @Test
     void shouldReturnNotFoundForInvalidPath() throws Exception {
         client.perform(get("/api/invalid")
                 .accept(MediaType.APPLICATION_JSON))
@@ -370,6 +474,16 @@ class ApiRestTest {
                   "dateTime": "%s"
                 }
                 """.formatted(patientId, doctorId, DATE_TIME_FORMATTER.format(dateTime));
+    }
+
+    private static Appointment appointment(UUID doctorId, LocalDateTime dateTime, AppointmentStatus status) {
+        return Appointment.builder()
+                .id(UUID.randomUUID())
+                .patientId(TestConfig.EXISTING_PATIENT_ID)
+                .doctorId(doctorId)
+                .dateTime(dateTime)
+                .status(status)
+                .build();
     }
 
     private static LocalDateTime nextWorkingDateTime(LocalTime time) {

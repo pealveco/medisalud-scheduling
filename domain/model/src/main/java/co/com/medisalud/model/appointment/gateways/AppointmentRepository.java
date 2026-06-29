@@ -3,6 +3,7 @@ package co.com.medisalud.model.appointment.gateways;
 import co.com.medisalud.model.appointment.Appointment;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -39,4 +40,17 @@ public interface AppointmentRepository {
             UUID patientId,
             UUID doctorId,
             LocalDateTime dateTime);
+
+    /**
+     * Finds scheduled appointments for a doctor inside a half-open date-time range.
+     *
+     * @param doctorId doctor identifier
+     * @param startDateTime inclusive range start
+     * @param endDateTime exclusive range end
+     * @return scheduled appointments in the range
+     */
+    List<Appointment> findScheduledByDoctorIdAndDateTimeBetween(
+            UUID doctorId,
+            LocalDateTime startDateTime,
+            LocalDateTime endDateTime);
 }

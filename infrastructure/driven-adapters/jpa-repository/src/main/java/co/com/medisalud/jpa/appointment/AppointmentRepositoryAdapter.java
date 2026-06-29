@@ -9,6 +9,7 @@ import org.reactivecommons.utils.ObjectMapper;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -57,5 +58,29 @@ public class AppointmentRepositoryAdapter extends AdapterOperations<Appointment,
                 dateTime,
                 AppointmentStatus.SCHEDULED
         );
+    }
+
+    /**
+     * Finds scheduled appointments for a doctor inside a half-open date-time range.
+     *
+     * @param doctorId doctor identifier
+     * @param startDateTime inclusive range start
+     * @param endDateTime exclusive range end
+     * @return scheduled appointments in the range
+     */
+    @Override
+    public List<Appointment> findScheduledByDoctorIdAndDateTimeBetween(
+            UUID doctorId,
+            LocalDateTime startDateTime,
+            LocalDateTime endDateTime) {
+        return repository.findDoctorAppointmentsInRange(
+                        doctorId,
+                        AppointmentStatus.SCHEDULED,
+                        startDateTime,
+                        endDateTime
+                )
+                .stream()
+                .map(this::toEntity)
+                .toList();
     }
 }

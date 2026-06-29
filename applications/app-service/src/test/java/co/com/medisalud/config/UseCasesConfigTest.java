@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -95,6 +96,14 @@ class UseCasesConfigTest {
                         UUID doctorId,
                         LocalDateTime dateTime) {
                     return false;
+                }
+
+                @Override
+                public List<Appointment> findScheduledByDoctorIdAndDateTimeBetween(
+                        UUID doctorId,
+                        LocalDateTime startDateTime,
+                        LocalDateTime endDateTime) {
+                    return List.of();
                 }
             };
         }

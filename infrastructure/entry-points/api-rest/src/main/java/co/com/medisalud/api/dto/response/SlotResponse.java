@@ -1,5 +1,7 @@
 package co.com.medisalud.api.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+
 import java.time.LocalTime;
 
 /**
@@ -9,7 +11,10 @@ import java.time.LocalTime;
  * @param end slot end time
  */
 public record SlotResponse(
+        @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "HH:mm:ss")
         LocalTime start,
+
+        @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "HH:mm:ss")
         LocalTime end
 ) {
 }

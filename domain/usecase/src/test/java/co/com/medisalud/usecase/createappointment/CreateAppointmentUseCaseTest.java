@@ -285,6 +285,19 @@ class CreateAppointmentUseCaseTest {
                             && dateTime.equals(appointment.getDateTime())
                             && AppointmentStatus.SCHEDULED == appointment.getStatus());
         }
+
+        @Override
+        public java.util.List<Appointment> findScheduledByDoctorIdAndDateTimeBetween(
+                UUID doctorId,
+                LocalDateTime startDateTime,
+                LocalDateTime endDateTime) {
+            return appointmentsById.values().stream()
+                    .filter(appointment -> doctorId.equals(appointment.getDoctorId()))
+                    .filter(appointment -> AppointmentStatus.SCHEDULED == appointment.getStatus())
+                    .filter(appointment -> !appointment.getDateTime().isBefore(startDateTime))
+                    .filter(appointment -> appointment.getDateTime().isBefore(endDateTime))
+                    .toList();
+        }
     }
 
     private static class InMemoryPenaltyRepository implements PenaltyRepository {

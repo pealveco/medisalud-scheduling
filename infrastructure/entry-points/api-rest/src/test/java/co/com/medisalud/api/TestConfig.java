@@ -12,6 +12,7 @@ import co.com.medisalud.model.penalty.gateways.PenaltyRepository;
 import co.com.medisalud.usecase.createappointment.CreateAppointmentUseCase;
 import co.com.medisalud.usecase.createdoctor.CreateDoctorUseCase;
 import co.com.medisalud.usecase.createpatient.CreatePatientUseCase;
+import co.com.medisalud.usecase.getdoctoravailability.GetDoctorAvailabilityUseCase;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
@@ -22,6 +23,7 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -34,7 +36,13 @@ import java.util.concurrent.ConcurrentHashMap;
                 type = FilterType.ASSIGNABLE_TYPE,
                 classes = CorsConfig.class
         ))
-@Import({ApiRest.class, CreateDoctorUseCase.class, CreatePatientUseCase.class, CreateAppointmentUseCase.class})
+@Import({
+        ApiRest.class,
+        CreateDoctorUseCase.class,
+        CreatePatientUseCase.class,
+        CreateAppointmentUseCase.class,
+        GetDoctorAvailabilityUseCase.class
+})
 public class TestConfig {
 
     static final UUID EXISTING_DOCTOR_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
@@ -164,6 +172,19 @@ public class TestConfig {
                             && doctorId.equals(appointment.getDoctorId())
                             && dateTime.equals(appointment.getDateTime())
                             && AppointmentStatus.SCHEDULED == appointment.getStatus());
+        }
+
+        @Override
+        public List<Appointment> findScheduledByDoctorIdAndDateTimeBetween(
+                UUID doctorId,
+                LocalDateTime startDateTime,
+                LocalDateTime endDateTime) {
+            return appointmentsById.values().stream()
+                    .filter(appointment -> doctorId.equals(appointment.getDoctorId()))
+                    .filter(appointment -> AppointmentStatus.SCHEDULED == appointment.getStatus())
+                    .filter(appointment -> !appointment.getDateTime().isBefore(startDateTime))
+                    .filter(appointment -> appointment.getDateTime().isBefore(endDateTime))
+                    .toList();
         }
     }
 }

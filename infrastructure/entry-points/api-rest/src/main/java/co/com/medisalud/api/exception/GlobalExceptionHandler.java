@@ -4,15 +4,18 @@ import co.com.medisalud.model.appointment.exceptions.InvalidAppointmentSlotExcep
 import co.com.medisalud.model.appointment.exceptions.OutsideWorkingHoursException;
 import co.com.medisalud.model.appointment.exceptions.PatientBlockedException;
 import co.com.medisalud.model.appointment.exceptions.SlotConflictException;
+import co.com.medisalud.model.common.exceptions.InvalidDateRangeException;
 import co.com.medisalud.model.common.exceptions.ResourceNotFoundException;
 import co.com.medisalud.model.patient.exceptions.PatientDocumentAlreadyExistsException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.net.URI;
 import java.util.List;
@@ -32,6 +35,7 @@ public class GlobalExceptionHandler {
             URI.create("https://medisalud.com/errors/outside-working-hours");
     private static final URI SLOT_CONFLICT_TYPE = URI.create("https://medisalud.com/errors/slot-conflict");
     private static final URI PATIENT_BLOCKED_TYPE = URI.create("https://medisalud.com/errors/patient-blocked");
+    private static final URI INVALID_DATE_RANGE_TYPE = URI.create("https://medisalud.com/errors/invalid-date-range");
 
     /**
      * Converts request body validation failures to a problem detail response.
@@ -42,15 +46,53 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleMethodArgumentNotValid(MethodArgumentNotValidException exception, WebRequest request) {
-        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
-                HttpStatus.BAD_REQUEST,
-                "Request validation failed"
+        return validationProblemDetail(
+                "Request validation failed",
+                request,
+                resolveValidationErrors(exception)
         );
-        problemDetail.setType(VALIDATION_ERROR_TYPE);
-        problemDetail.setTitle("Invalid request");
-        problemDetail.setInstance(resolveInstance(request));
-        problemDetail.setProperty("errors", resolveValidationErrors(exception));
-        return problemDetail;
+    }
+
+    /**
+     * Converts missing query parameter failures to a validation problem detail response.
+     *
+     * @param exception missing request parameter exception raised by Spring MVC
+     * @param request current web request
+     * @return problem detail with the missing parameter error
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ProblemDetail handleMissingServletRequestParameter(
+            MissingServletRequestParameterException exception,
+            WebRequest request) {
+        return validationProblemDetail(
+                "Request parameter validation failed",
+                request,
+                List.of(new ValidationErrorResponse(
+                        exception.getParameterName(),
+                        "Required request parameter is missing"
+                ))
+        );
+    }
+
+    /**
+     * Converts query/path parameter type mismatches to a validation problem detail response.
+     *
+     * @param exception type mismatch exception raised by Spring MVC
+     * @param request current web request
+     * @return problem detail with the invalid parameter error
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ProblemDetail handleMethodArgumentTypeMismatch(
+            MethodArgumentTypeMismatchException exception,
+            WebRequest request) {
+        return validationProblemDetail(
+                "Request parameter validation failed",
+                request,
+                List.of(new ValidationErrorResponse(
+                        exception.getName(),
+                        "Invalid value for " + resolveRequiredTypeName(exception)
+                ))
+        );
     }
 
     /**
@@ -155,6 +197,22 @@ public class GlobalExceptionHandler {
         return problemDetail;
     }
 
+    /**
+     * Converts invalid date ranges to bad request responses.
+     *
+     * @param exception domain invalid range exception
+     * @param request current web request
+     * @return problem detail describing the invalid range
+     */
+    @ExceptionHandler(InvalidDateRangeException.class)
+    public ProblemDetail handleInvalidDateRange(InvalidDateRangeException exception, WebRequest request) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
+        problemDetail.setType(INVALID_DATE_RANGE_TYPE);
+        problemDetail.setTitle("Invalid date range");
+        problemDetail.setInstance(resolveInstance(request));
+        return problemDetail;
+    }
+
     private static URI resolveInstance(WebRequest request) {
         if (request instanceof ServletWebRequest servletWebRequest) {
             return URI.create(servletWebRequest.getRequest().getRequestURI());
@@ -162,9 +220,28 @@ public class GlobalExceptionHandler {
         return null;
     }
 
+    private static ProblemDetail validationProblemDetail(
+            String detail,
+            WebRequest request,
+            List<ValidationErrorResponse> errors) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
+        problemDetail.setType(VALIDATION_ERROR_TYPE);
+        problemDetail.setTitle("Invalid request");
+        problemDetail.setInstance(resolveInstance(request));
+        problemDetail.setProperty("errors", errors);
+        return problemDetail;
+    }
+
     private static List<ValidationErrorResponse> resolveValidationErrors(MethodArgumentNotValidException exception) {
         return exception.getBindingResult().getFieldErrors().stream()
                 .map(error -> new ValidationErrorResponse(error.getField(), error.getDefaultMessage()))
                 .toList();
+    }
+
+    private static String resolveRequiredTypeName(MethodArgumentTypeMismatchException exception) {
+        if (exception.getRequiredType() == null) {
+            return "expected type";
+        }
+        return exception.getRequiredType().getSimpleName();
     }
 }

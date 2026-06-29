@@ -1,4 +1,5 @@
 package co.com.medisalud.api;
+
 import co.com.medisalud.api.dto.request.CreateAppointmentRequest;
 import co.com.medisalud.api.dto.request.CreateDoctorRequest;
 import co.com.medisalud.api.dto.request.CreatePatientRequest;
@@ -11,14 +12,17 @@ import co.com.medisalud.api.dto.response.DoctorResponse;
 import co.com.medisalud.api.dto.response.PatientResponse;
 import co.com.medisalud.api.dto.response.RescheduleAppointmentResponse;
 import co.com.medisalud.api.mapper.AppointmentMapper;
+import co.com.medisalud.api.mapper.AvailabilityMapper;
 import co.com.medisalud.api.mapper.DoctorMapper;
 import co.com.medisalud.api.mapper.PatientMapper;
 import co.com.medisalud.model.appointment.Appointment;
+import co.com.medisalud.model.availabilityday.AvailabilityDay;
 import co.com.medisalud.model.doctor.Doctor;
 import co.com.medisalud.model.patient.Patient;
 import co.com.medisalud.usecase.createappointment.CreateAppointmentUseCase;
 import co.com.medisalud.usecase.createdoctor.CreateDoctorUseCase;
 import co.com.medisalud.usecase.createpatient.CreatePatientUseCase;
+import co.com.medisalud.usecase.getdoctoravailability.GetDoctorAvailabilityUseCase;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
@@ -55,7 +59,9 @@ public class ApiRest {
     private final CreateDoctorUseCase createDoctorUseCase;
     private final CreatePatientUseCase createPatientUseCase;
     private final CreateAppointmentUseCase createAppointmentUseCase;
+    private final GetDoctorAvailabilityUseCase getDoctorAvailabilityUseCase;
     private final AppointmentMapper appointmentMapper;
+    private final AvailabilityMapper availabilityMapper;
     private final DoctorMapper doctorMapper;
     private final PatientMapper patientMapper;
 
@@ -106,10 +112,11 @@ public class ApiRest {
      */
     @GetMapping(path = "/doctors/{id}/availability")
     public ResponseEntity<List<AvailabilityDayResponse>> getDoctorAvailability(
-            @PathVariable UUID id,
-            @NotNull @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @NotNull @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-        return notImplemented();
+            @PathVariable("id") UUID id,
+            @NotNull @RequestParam("startDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @NotNull @RequestParam("endDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        List<AvailabilityDay> availability = getDoctorAvailabilityUseCase.getAvailability(id, startDate, endDate);
+        return ResponseEntity.ok(availabilityMapper.toResponse(availability));
     }
 
     /**
@@ -119,7 +126,7 @@ public class ApiRest {
      * @return cancelled appointment response
      */
     @DeleteMapping(path = "/appointments/{id}")
-    public ResponseEntity<CancelAppointmentResponse> cancelAppointment(@PathVariable UUID id) {
+    public ResponseEntity<CancelAppointmentResponse> cancelAppointment(@PathVariable("id") UUID id) {
         return notImplemented();
     }
 
@@ -132,7 +139,7 @@ public class ApiRest {
      */
     @PutMapping(path = "/appointments/{id}/reschedule", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<RescheduleAppointmentResponse> rescheduleAppointment(
-            @PathVariable UUID id,
+            @PathVariable("id") UUID id,
             @Valid @RequestBody RescheduleAppointmentRequest request) {
         return notImplemented();
     }
@@ -149,12 +156,12 @@ public class ApiRest {
      */
     @GetMapping(path = "/appointments")
     public ResponseEntity<List<AppointmentResponse>> listAppointments(
-            @RequestParam(required = false) UUID doctorId,
-            @RequestParam(required = false) UUID patientId,
-            @RequestParam(required = false) AppointmentStatusDto status,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            @RequestParam(name = "doctorId", required = false) UUID doctorId,
+            @RequestParam(name = "patientId", required = false) UUID patientId,
+            @RequestParam(name = "status", required = false) AppointmentStatusDto status,
+            @RequestParam(name = "startDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
             LocalDateTime startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            @RequestParam(name = "endDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
             LocalDateTime endDate) {
         return notImplemented();
     }
