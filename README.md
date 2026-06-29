@@ -16,17 +16,13 @@ Implementado:
 - `DELETE /api/appointments/{id}` funcional con cancelación y penalización por cancelación tardía.
 - `GET /api/doctors/{id}/availability` funcional con generación de franjas libres por rango.
 - `GET /api/appointments` funcional con filtros opcionales y combinables.
+- `PUT /api/appointments/{id}/reschedule` funcional con atomicidad para reprogramación.
 - Validaciones declarativas para registro de médicos, pacientes y reserva/cancelación de citas.
 - Respuestas de validación con `ProblemDetail` y campo `errors`.
 - Respuestas `400`, `404`, `409` y `500` con `ProblemDetail` para rangos inválidos, recursos inexistentes, duplicidades, conflictos de franja, estado inválido de cita, bloqueo de paciente y errores no controlados.
 - PostgreSQL local con Docker Compose para perfil `local`.
 - H2 en memoria para perfil `test`.
-
-Pendiente:
-
-- Reprogramación de citas.
-- Handler completo para las excepciones de dominio de las próximas HU, si aparecen nuevos casos.
-- README final con todos los endpoints cuando estén implementados.
+- README con ejecución local, tests, arquitectura, endpoints y decisiones principales.
 
 ## Stack
 
@@ -59,6 +55,14 @@ Reglas principales:
 - La persistencia se implementa en el driven adapter JPA.
 - Los use cases se generan con el scaffold y se registran mediante `UseCasesConfig`.
 - La política de horario laboral RN-01 está centralizada en `WorkingHoursPolicy`, reutilizada por reserva y disponibilidad.
+
+Justificación:
+
+- Clean Architecture / Hexagonal separa reglas de negocio de infraestructura. Esto permite probar los use cases sin levantar Spring ni una base de datos real.
+- El dominio se mantiene con modelos puros, sin anotaciones de persistencia ni dependencias de frameworks.
+- Los adapters concentran detalles técnicos como JPA, queries, entidades y mapeo entity-dominio.
+- El entry point REST se limita a validar DTOs, mapear request/response y delegar a casos de uso.
+- Se usa Spring MVC imperativo con JPA/Hibernate porque el proyecto no requiere programación reactiva y la prueba pide explícitamente un backend imperativo con persistencia relacional.
 
 ## Perfiles Spring
 
@@ -539,6 +543,19 @@ curl -i "http://localhost:8080/api/appointments?doctorId=a1b2c3d4-e5f6-7890-abcd
 curl -i "http://localhost:8080/api/appointments?status=SCHEDULED&startDate=2026-07-01T00:00:00&endDate=2026-07-31T23:59:59"
 ```
 
+## Decisiones y Supuestos
+
+- **Arquitectura:** se usa Clean Architecture / Hexagonal mediante el scaffold de Bancolombia para separar dominio, casos de uso, entry points y driven adapters.
+- **Backend imperativo:** se usa Spring MVC y JPA/Hibernate. No se usa WebFlux porque el proyecto no requiere flujos reactivos y la prueba define un backend imperativo.
+- **Persistencia:** PostgreSQL es la base runtime local mediante Docker Compose; H2 se usa solo para tests automatizados con el perfil `test`.
+- **Dominio limpio:** los modelos de dominio no tienen anotaciones JPA. Las entidades JPA viven en el driven adapter y se mapean hacia/desde dominio.
+- **Festivos RN-01:** para el MVP se asume calendario de Colombia calculado localmente por año. En un producto real convendría una fuente administrable o sincronizada para festivos.
+- **RN-04:** se interpreta de forma literal: el paciente no puede tener dos citas con el mismo médico en la misma franja. El mismo paciente con otro médico en la misma franja no se bloquea por esta regla.
+- **RN-05:** exactamente 2 horas de antelación no penaliza; solo penaliza una cancelación con menos de 2 horas.
+- **RN-06:** reprogramación se expone como endpoint propio porque necesita atomicidad. Si la nueva cita falla, la original permanece `SCHEDULED`.
+- **Registro de médicos:** no se fuerza unicidad porque el enunciado no define un identificador natural obligatorio para médicos. En un caso real debería definirse un dato único como licencia o registro profesional.
+- **Edad RN-03:** no se persiste un campo `age`; la edad es derivada de `birthDate`. Si `birthDate` está ausente, la regla se interpreta como edad efectiva `0`.
+
 ## Manejo de Errores
 
 La API usa `ProblemDetail` de Spring Boot, basado en RFC 7807, para mantener respuestas de error consistentes.
@@ -612,41 +629,7 @@ Ejemplo `500` por error no controlado:
 }
 ```
 
-## Comandos del Scaffold
-
-Este proyecto fue generado con el scaffold Clean Architecture de Bancolombia. Para módulos generados por el scaffold se deben usar sus tareas Gradle.
-
-Comandos usados hasta ahora:
-
-```bash
-./gradlew gm --name=Doctor
-./gradlew gm --name=Patient
-./gradlew gm --name=Appointment
-./gradlew gm --name=Penalty
-./gradlew gm --name=AvailabilityDay
-./gradlew gm --name=AvailabilitySlot
-./gradlew gm --name=AppointmentCancellation
-./gradlew gm --name=AppointmentSearchCriteria
-./gradlew gm --name=AppointmentReschedule
-./gradlew guc --name=CreateDoctor
-./gradlew guc --name=CreatePatient
-./gradlew guc --name=CreateAppointment
-./gradlew guc --name=GetDoctorAvailability
-./gradlew guc --name=CancelAppointment
-./gradlew guc --name=ListAppointments
-./gradlew guc --name=RescheduleAppointment
-./gradlew gep --type=restmvc
-./gradlew gda --type=jpa
-```
-
 ## Mejoras Futuras
 
 - Agregar paginación y ordenamiento a `GET /api/appointments` mediante `page`, `size` y `sort`, porque el volumen histórico de citas puede crecer indefinidamente.
 - Definir un rango máximo permitido para `GET /api/doctors/{id}/availability`, por ejemplo 31 días, para evitar consultas demasiado amplias sin paginar una respuesta que normalmente debe verse completa por rango.
-
-## Notas de Desarrollo
-
-- `SPEC.md` es una nota local de trabajo y está ignorada por Git.
-- Los archivos `medisalud.env.*` reales están ignorados por Git.
-- `docker-compose.yml` y `medisalud.env.local.example` sí se versionan.
-- Cada cambio importante de ejecución, perfiles, endpoints, arquitectura o decisiones técnicas debe reflejarse en este README.
