@@ -17,6 +17,7 @@ import co.com.medisalud.api.mapper.DoctorMapper;
 import co.com.medisalud.api.mapper.PatientMapper;
 import co.com.medisalud.model.appointment.Appointment;
 import co.com.medisalud.model.appointmentcancellation.AppointmentCancellation;
+import co.com.medisalud.model.appointmentreschedule.AppointmentReschedule;
 import co.com.medisalud.model.appointmentsearchcriteria.AppointmentSearchCriteria;
 import co.com.medisalud.model.availabilityday.AvailabilityDay;
 import co.com.medisalud.model.doctor.Doctor;
@@ -27,6 +28,7 @@ import co.com.medisalud.usecase.createdoctor.CreateDoctorUseCase;
 import co.com.medisalud.usecase.createpatient.CreatePatientUseCase;
 import co.com.medisalud.usecase.getdoctoravailability.GetDoctorAvailabilityUseCase;
 import co.com.medisalud.usecase.listappointments.ListAppointmentsUseCase;
+import co.com.medisalud.usecase.rescheduleappointment.RescheduleAppointmentUseCase;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +36,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -44,7 +47,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -66,6 +68,7 @@ public class ApiRest {
     private final GetDoctorAvailabilityUseCase getDoctorAvailabilityUseCase;
     private final CancelAppointmentUseCase cancelAppointmentUseCase;
     private final ListAppointmentsUseCase listAppointmentsUseCase;
+    private final RescheduleAppointmentUseCase rescheduleAppointmentUseCase;
     private final AppointmentMapper appointmentMapper;
     private final AvailabilityMapper availabilityMapper;
     private final DoctorMapper doctorMapper;
@@ -145,10 +148,12 @@ public class ApiRest {
      * @return rescheduling response containing the original and new appointments
      */
     @PutMapping(path = "/appointments/{id}/reschedule", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @Transactional
     public ResponseEntity<RescheduleAppointmentResponse> rescheduleAppointment(
             @PathVariable("id") UUID id,
             @Valid @RequestBody RescheduleAppointmentRequest request) {
-        return notImplemented();
+        AppointmentReschedule reschedule = rescheduleAppointmentUseCase.rescheduleAppointment(id, request.newDateTime());
+        return ResponseEntity.ok(appointmentMapper.toRescheduleResponse(reschedule));
     }
 
     /**
@@ -181,7 +186,4 @@ public class ApiRest {
         return ResponseEntity.ok(appointmentMapper.toResponse(appointments));
     }
 
-    private static <T> ResponseEntity<T> notImplemented() {
-        throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Use case not implemented yet");
-    }
 }

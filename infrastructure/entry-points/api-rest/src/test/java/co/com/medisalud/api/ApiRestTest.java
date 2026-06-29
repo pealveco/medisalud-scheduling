@@ -23,9 +23,12 @@ import java.time.temporal.TemporalAdjusters;
 import java.util.Set;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -520,6 +523,70 @@ class ApiRestTest {
     }
 
     @Test
+    void shouldRescheduleAppointmentWhenNewSlotIsAvailable() throws Exception {
+        UUID appointmentId = UUID.randomUUID();
+        LocalDateTime originalDateTime = LocalDateTime.of(2026, 12, 1, 8, 0);
+        LocalDateTime newDateTime = LocalDateTime.of(2026, 12, 1, 9, 0);
+        appointmentRepository.save(appointment(appointmentId, TestConfig.EXISTING_DOCTOR_ID,
+                originalDateTime, AppointmentStatus.SCHEDULED));
+
+        client.perform(put("/api/appointments/{id}/reschedule", appointmentId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(rescheduleRequest(newDateTime)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(appointmentId.toString()))
+                .andExpect(jsonPath("$.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.penaltyApplied").value(false))
+                .andExpect(jsonPath("$.newAppointment.id").exists())
+                .andExpect(jsonPath("$.newAppointment.patientId").value(TestConfig.EXISTING_PATIENT_ID.toString()))
+                .andExpect(jsonPath("$.newAppointment.doctorId").value(TestConfig.EXISTING_DOCTOR_ID.toString()))
+                .andExpect(jsonPath("$.newAppointment.dateTime").value(DATE_TIME_FORMATTER.format(newDateTime)))
+                .andExpect(jsonPath("$.newAppointment.status").value("SCHEDULED"));
+    }
+
+    @Test
+    void shouldKeepOriginalAppointmentScheduledWhenRescheduleSlotIsOccupied() throws Exception {
+        UUID appointmentId = UUID.randomUUID();
+        LocalDateTime originalDateTime = LocalDateTime.of(2026, 12, 2, 8, 0);
+        LocalDateTime occupiedDateTime = LocalDateTime.of(2026, 12, 2, 9, 0);
+        appointmentRepository.save(appointment(appointmentId, TestConfig.EXISTING_DOCTOR_ID,
+                originalDateTime, AppointmentStatus.SCHEDULED));
+        appointmentRepository.save(appointment(UUID.randomUUID(), TestConfig.EXISTING_DOCTOR_ID,
+                TestConfig.OTHER_PATIENT_ID, occupiedDateTime, AppointmentStatus.SCHEDULED));
+
+        client.perform(put("/api/appointments/{id}/reschedule", appointmentId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(rescheduleRequest(occupiedDateTime)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.type").value("https://medisalud.com/errors/slot-conflict"));
+
+        Appointment originalAppointment = appointmentRepository.findById(appointmentId);
+        assertNotNull(originalAppointment);
+        assertEquals(AppointmentStatus.SCHEDULED, originalAppointment.getStatus());
+    }
+
+    @Test
+    void shouldApplyPenaltyWhenReschedulingLateAppointment() throws Exception {
+        UUID appointmentId = UUID.randomUUID();
+        LocalDateTime originalDateTime = LocalDateTime.now().plusMinutes(90);
+        LocalDateTime newDateTime = LocalDateTime.of(2026, 12, 3, 10, 0);
+        appointmentRepository.save(appointment(appointmentId, TestConfig.EXISTING_DOCTOR_ID,
+                originalDateTime, AppointmentStatus.SCHEDULED));
+
+        client.perform(put("/api/appointments/{id}/reschedule", appointmentId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(rescheduleRequest(newDateTime)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(appointmentId.toString()))
+                .andExpect(jsonPath("$.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.penaltyApplied").value(true))
+                .andExpect(jsonPath("$.newAppointment.status").value("SCHEDULED"));
+    }
+
+    @Test
     void shouldReturnDoctorAvailabilityExcludingOccupiedSlots() throws Exception {
         LocalDate date = LocalDate.of(2026, 7, 1);
         appointmentRepository.save(appointment(TestConfig.EXISTING_DOCTOR_ID, date.atTime(8, 0),
@@ -765,6 +832,14 @@ class ApiRestTest {
                   "dateTime": "%s"
                 }
                 """.formatted(patientId, doctorId, DATE_TIME_FORMATTER.format(dateTime));
+    }
+
+    private static String rescheduleRequest(LocalDateTime newDateTime) {
+        return """
+                {
+                  "newDateTime": "%s"
+                }
+                """.formatted(DATE_TIME_FORMATTER.format(newDateTime));
     }
 
     private static Appointment appointment(UUID doctorId, LocalDateTime dateTime, AppointmentStatus status) {

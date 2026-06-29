@@ -4,9 +4,11 @@ import co.com.medisalud.api.dto.request.CreateAppointmentRequest;
 import co.com.medisalud.api.dto.response.AppointmentResponse;
 import co.com.medisalud.api.dto.response.AppointmentStatusDto;
 import co.com.medisalud.api.dto.response.CancelAppointmentResponse;
+import co.com.medisalud.api.dto.response.RescheduleAppointmentResponse;
 import co.com.medisalud.model.appointment.Appointment;
 import co.com.medisalud.model.appointment.AppointmentStatus;
 import co.com.medisalud.model.appointmentcancellation.AppointmentCancellation;
+import co.com.medisalud.model.appointmentreschedule.AppointmentReschedule;
 import co.com.medisalud.model.appointmentsearchcriteria.AppointmentSearchCriteria;
 import org.springframework.stereotype.Component;
 
@@ -75,6 +77,25 @@ public class AppointmentMapper {
                 AppointmentStatusDto.valueOf(appointment.getStatus().name()),
                 appointment.getCancelledAt(),
                 cancellation.isPenaltyApplied()
+        );
+    }
+
+    /**
+     * Converts an appointment rescheduling result into an API response.
+     *
+     * @param reschedule rescheduling domain result
+     * @return API rescheduling response
+     */
+    public RescheduleAppointmentResponse toRescheduleResponse(AppointmentReschedule reschedule) {
+        Appointment originalAppointment = reschedule.getOriginalAppointment();
+        return new RescheduleAppointmentResponse(
+                originalAppointment.getId(),
+                originalAppointment.getPatientId(),
+                originalAppointment.getDoctorId(),
+                originalAppointment.getDateTime(),
+                AppointmentStatusDto.valueOf(originalAppointment.getStatus().name()),
+                reschedule.isPenaltyApplied(),
+                toResponse(reschedule.getNewAppointment())
         );
     }
 

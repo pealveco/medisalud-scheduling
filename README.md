@@ -437,6 +437,61 @@ Ejemplo con curl:
 curl -i -X DELETE "http://localhost:8080/api/appointments/appointment-uuid"
 ```
 
+### Reprogramar Cita
+
+```http
+PUT /api/appointments/{id}/reschedule
+```
+
+Request:
+
+```json
+{
+  "newDateTime": "2026-07-02T09:00:00"
+}
+```
+
+Response `200`:
+
+```json
+{
+  "id": "original-appointment-uuid",
+  "patientId": "patient-uuid",
+  "doctorId": "doctor-uuid",
+  "dateTime": "2026-07-01T08:00:00",
+  "status": "CANCELLED",
+  "penaltyApplied": false,
+  "newAppointment": {
+    "id": "new-appointment-uuid",
+    "patientId": "patient-uuid",
+    "doctorId": "doctor-uuid",
+    "dateTime": "2026-07-02T09:00:00",
+    "status": "SCHEDULED"
+  }
+}
+```
+
+Reglas aplicadas:
+
+- La cita original debe existir y estar en estado `SCHEDULED`.
+- La nueva fecha debe cumplir horario laboral, alineación de franja, disponibilidad del médico y conflicto paciente-médico.
+- Si la cancelación de la cita original ocurre con menos de 2 horas de antelación, se registra penalización y `penaltyApplied` retorna `true`.
+- Si el nuevo horario está ocupado o es inválido, retorna el error correspondiente y la cita original permanece `SCHEDULED`.
+
+Decisión técnica:
+
+- Aunque RN-06 se expresa como regla de negocio, se expone como `PUT /api/appointments/{id}/reschedule` porque requiere atomicidad: cancelar la cita original y crear la nueva deben comportarse como una sola operación. El use case crea primero la nueva cita y solo después cancela la original; si la nueva reserva falla por validaciones de negocio, la cita original permanece `SCHEDULED`. Además, el endpoint se ejecuta con frontera transaccional Spring para revertir cualquier escritura parcial si ocurre un fallo durante la operación.
+
+Ejemplo con curl:
+
+```bash
+curl -i -X PUT "http://localhost:8080/api/appointments/appointment-uuid/reschedule" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "newDateTime": "2026-07-02T09:00:00"
+  }'
+```
+
 ### Listar Citas
 
 ```http
@@ -572,12 +627,14 @@ Comandos usados hasta ahora:
 ./gradlew gm --name=AvailabilitySlot
 ./gradlew gm --name=AppointmentCancellation
 ./gradlew gm --name=AppointmentSearchCriteria
+./gradlew gm --name=AppointmentReschedule
 ./gradlew guc --name=CreateDoctor
 ./gradlew guc --name=CreatePatient
 ./gradlew guc --name=CreateAppointment
 ./gradlew guc --name=GetDoctorAvailability
 ./gradlew guc --name=CancelAppointment
 ./gradlew guc --name=ListAppointments
+./gradlew guc --name=RescheduleAppointment
 ./gradlew gep --type=restmvc
 ./gradlew gda --type=jpa
 ```

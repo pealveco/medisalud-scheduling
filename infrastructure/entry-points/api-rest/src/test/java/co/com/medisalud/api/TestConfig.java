@@ -17,6 +17,7 @@ import co.com.medisalud.usecase.createdoctor.CreateDoctorUseCase;
 import co.com.medisalud.usecase.createpatient.CreatePatientUseCase;
 import co.com.medisalud.usecase.getdoctoravailability.GetDoctorAvailabilityUseCase;
 import co.com.medisalud.usecase.listappointments.ListAppointmentsUseCase;
+import co.com.medisalud.usecase.rescheduleappointment.RescheduleAppointmentUseCase;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
@@ -49,7 +50,8 @@ import java.util.concurrent.ConcurrentHashMap;
         CreateAppointmentUseCase.class,
         CancelAppointmentUseCase.class,
         GetDoctorAvailabilityUseCase.class,
-        ListAppointmentsUseCase.class
+        ListAppointmentsUseCase.class,
+        RescheduleAppointmentUseCase.class
 })
 public class TestConfig {
 
