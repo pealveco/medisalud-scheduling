@@ -4,7 +4,6 @@ import co.com.medisalud.model.availabilityslot.AvailabilitySlot;
 import lombok.Builder;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-//import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDate;
@@ -15,7 +14,6 @@ import java.util.List;
  */
 @Getter
 @Setter
-//@NoArgsConstructor
 @AllArgsConstructor
 @Builder(toBuilder = true)
 public class AvailabilityDay {

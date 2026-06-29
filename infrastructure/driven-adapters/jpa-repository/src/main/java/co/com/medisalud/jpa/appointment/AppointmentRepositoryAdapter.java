@@ -24,6 +24,8 @@ import java.util.UUID;
 public class AppointmentRepositoryAdapter extends AdapterOperations<Appointment, AppointmentData, UUID,
         AppointmentJpaRepository> implements AppointmentRepository {
 
+    private static final String FIELD_DATE_TIME = "dateTime";
+
     public AppointmentRepositoryAdapter(AppointmentJpaRepository repository, ObjectMapper mapper) {
         super(
                 repository,
@@ -99,7 +101,7 @@ public class AppointmentRepositoryAdapter extends AdapterOperations<Appointment,
     public List<Appointment> findByCriteria(AppointmentSearchCriteria criteria) {
         return repository.findAll(
                         buildSpecification(criteria),
-                        Sort.by(Sort.Direction.ASC, "dateTime")
+                        Sort.by(Sort.Direction.ASC, FIELD_DATE_TIME)
                 )
                 .stream()
                 .map(this::toEntity)
@@ -119,10 +121,10 @@ public class AppointmentRepositoryAdapter extends AdapterOperations<Appointment,
                 predicates.add(criteriaBuilder.equal(root.get("status"), criteria.getStatus()));
             }
             if (criteria.getStartDate() != null) {
-                predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("dateTime"), criteria.getStartDate()));
+                predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get(FIELD_DATE_TIME), criteria.getStartDate()));
             }
             if (criteria.getEndDate() != null) {
-                predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("dateTime"), criteria.getEndDate()));
+                predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get(FIELD_DATE_TIME), criteria.getEndDate()));
             }
             return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
         };

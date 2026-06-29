@@ -25,6 +25,19 @@ sonar {
         property "sonar.modules", "${modules.join(',')}"
         property "sonar.sources", "src,deployment,settings.gradle,main.gradle,build.gradle,${modules.collect { "${it}/build.gradle" }.join(',')}"
         property "sonar.exclusions", "**/MainApplication.java,**/**.bin,**/deployment/**"
+        property "sonar.coverage.exclusions", [
+                "**/MainApplication.java",
+                "**/*Config.java",
+                "**/*Configuration.java",
+                "**/*Properties.java",
+                "**/*Data.java",
+                "**/*Request.java",
+                "**/*Response.java",
+                "**/*Dto.java",
+                "**/*StatusDto.java",
+                "**/*Repository.java",
+                "**/gateways/**"
+        ].join(",")
         property "sonar.tests", "src/test"
         property "sonar.java.binaries", "**/build/classes/java/main"
         property "sonar.junit.reportsPath", "**/build/test-results/test"

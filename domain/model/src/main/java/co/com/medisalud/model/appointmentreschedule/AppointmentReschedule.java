@@ -4,7 +4,6 @@ import co.com.medisalud.model.appointment.Appointment;
 import lombok.Builder;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-//import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
@@ -12,7 +11,6 @@ import lombok.Setter;
  */
 @Getter
 @Setter
-//@NoArgsConstructor
 @AllArgsConstructor
 @Builder(toBuilder = true)
 public class AppointmentReschedule {

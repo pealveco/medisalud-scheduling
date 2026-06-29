@@ -50,6 +50,8 @@ public class GlobalExceptionHandler {
     private static final URI RESPONSE_STATUS_ERROR_TYPE = URI.create("https://medisalud.com/errors/http-status-error");
     private static final URI INTERNAL_SERVER_ERROR_TYPE = URI.create("https://medisalud.com/errors/internal-server-error");
 
+    private static final String TITLE_RESOURCE_NOT_FOUND = "Resource not found";
+
     /**
      * Converts request body validation failures to a problem detail response.
      *
@@ -137,7 +139,7 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleResourceNotFound(ResourceNotFoundException exception, WebRequest request) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
         problemDetail.setType(RESOURCE_NOT_FOUND_TYPE);
-        problemDetail.setTitle("Resource not found");
+        problemDetail.setTitle(TITLE_RESOURCE_NOT_FOUND);
         problemDetail.setInstance(resolveInstance(request));
         return problemDetail;
     }
@@ -153,7 +155,7 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleNoResourceFound(NoResourceFoundException exception, WebRequest request) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
         problemDetail.setType(RESOURCE_NOT_FOUND_TYPE);
-        problemDetail.setTitle("Resource not found");
+        problemDetail.setTitle(TITLE_RESOURCE_NOT_FOUND);
         problemDetail.setInstance(resolveInstance(request));
         return problemDetail;
     }
@@ -169,7 +171,7 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleNoHandlerFound(NoHandlerFoundException exception, WebRequest request) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
         problemDetail.setType(RESOURCE_NOT_FOUND_TYPE);
-        problemDetail.setTitle("Resource not found");
+        problemDetail.setTitle(TITLE_RESOURCE_NOT_FOUND);
         problemDetail.setInstance(resolveInstance(request));
         return problemDetail;
     }
@@ -339,9 +341,10 @@ public class GlobalExceptionHandler {
     }
 
     private static String resolveRequiredTypeName(MethodArgumentTypeMismatchException exception) {
-        if (exception.getRequiredType() == null) {
+        Class<?> requiredType = exception.getRequiredType();
+        if (requiredType == null) {
             return "expected type";
         }
-        return exception.getRequiredType().getSimpleName();
+        return requiredType.getSimpleName();
     }
 }
