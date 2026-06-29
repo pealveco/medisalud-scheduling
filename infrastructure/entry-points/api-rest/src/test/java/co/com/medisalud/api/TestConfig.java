@@ -52,6 +52,7 @@ import java.util.concurrent.ConcurrentHashMap;
 })
 public class TestConfig {
 
+    static final String UNEXPECTED_ERROR_DOCTOR_NAME = "Trigger Failure";
     static final UUID EXISTING_DOCTOR_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
     static final UUID EXISTING_PATIENT_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
     static final UUID BLOCKED_PATIENT_ID = UUID.fromString("33333333-3333-3333-3333-333333333333");
@@ -91,6 +92,9 @@ public class TestConfig {
 
         @Override
         public Doctor save(Doctor doctor) {
+            if (UNEXPECTED_ERROR_DOCTOR_NAME.equals(doctor.getFullName())) {
+                throw new IllegalStateException("Forced unexpected test error");
+            }
             doctorsById.put(doctor.getId(), doctor);
             return doctor;
         }

@@ -8,6 +8,9 @@ import co.com.medisalud.model.appointment.exceptions.SlotConflictException;
 import co.com.medisalud.model.common.exceptions.InvalidDateRangeException;
 import co.com.medisalud.model.common.exceptions.ResourceNotFoundException;
 import co.com.medisalud.model.patient.exceptions.PatientDocumentAlreadyExistsException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -17,6 +20,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.net.URI;
 import java.util.List;
@@ -26,6 +32,8 @@ import java.util.List;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     private static final URI VALIDATION_ERROR_TYPE = URI.create("https://medisalud.com/errors/validation");
     private static final URI PATIENT_DOCUMENT_CONFLICT_TYPE = URI.create("https://medisalud.com/errors/patient-document-already-exists");
@@ -39,6 +47,8 @@ public class GlobalExceptionHandler {
     private static final URI INVALID_DATE_RANGE_TYPE = URI.create("https://medisalud.com/errors/invalid-date-range");
     private static final URI APPOINTMENT_STATE_CONFLICT_TYPE =
             URI.create("https://medisalud.com/errors/appointment-state-conflict");
+    private static final URI RESPONSE_STATUS_ERROR_TYPE = URI.create("https://medisalud.com/errors/http-status-error");
+    private static final URI INTERNAL_SERVER_ERROR_TYPE = URI.create("https://medisalud.com/errors/internal-server-error");
 
     /**
      * Converts request body validation failures to a problem detail response.
@@ -125,6 +135,38 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(ResourceNotFoundException.class)
     public ProblemDetail handleResourceNotFound(ResourceNotFoundException exception, WebRequest request) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
+        problemDetail.setType(RESOURCE_NOT_FOUND_TYPE);
+        problemDetail.setTitle("Resource not found");
+        problemDetail.setInstance(resolveInstance(request));
+        return problemDetail;
+    }
+
+    /**
+     * Converts missing HTTP resources to not-found responses.
+     *
+     * @param exception missing web resource exception
+     * @param request current web request
+     * @return problem detail describing the missing resource
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ProblemDetail handleNoResourceFound(NoResourceFoundException exception, WebRequest request) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
+        problemDetail.setType(RESOURCE_NOT_FOUND_TYPE);
+        problemDetail.setTitle("Resource not found");
+        problemDetail.setInstance(resolveInstance(request));
+        return problemDetail;
+    }
+
+    /**
+     * Converts missing HTTP handlers to not-found responses.
+     *
+     * @param exception missing handler exception
+     * @param request current web request
+     * @return problem detail describing the missing endpoint
+     */
+    @ExceptionHandler(NoHandlerFoundException.class)
+    public ProblemDetail handleNoHandlerFound(NoHandlerFoundException exception, WebRequest request) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
         problemDetail.setType(RESOURCE_NOT_FOUND_TYPE);
         problemDetail.setTitle("Resource not found");
@@ -230,6 +272,43 @@ public class GlobalExceptionHandler {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
         problemDetail.setType(INVALID_DATE_RANGE_TYPE);
         problemDetail.setTitle("Invalid date range");
+        problemDetail.setInstance(resolveInstance(request));
+        return problemDetail;
+    }
+
+    /**
+     * Converts explicit Spring response-status exceptions to problem detail responses.
+     *
+     * @param exception Spring response-status exception
+     * @param request current web request
+     * @return problem detail preserving the requested HTTP status
+     */
+    @ExceptionHandler(ResponseStatusException.class)
+    public ProblemDetail handleResponseStatus(ResponseStatusException exception, WebRequest request) {
+        HttpStatusCode statusCode = exception.getStatusCode();
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(statusCode, exception.getReason());
+        problemDetail.setType(RESPONSE_STATUS_ERROR_TYPE);
+        problemDetail.setTitle("HTTP status error");
+        problemDetail.setInstance(resolveInstance(request));
+        return problemDetail;
+    }
+
+    /**
+     * Converts uncontrolled errors to internal-server-error problem detail responses.
+     *
+     * @param exception uncontrolled exception
+     * @param request current web request
+     * @return problem detail describing an internal server error
+     */
+    @ExceptionHandler(Exception.class)
+    public ProblemDetail handleUnexpectedException(Exception exception, WebRequest request) {
+        LOGGER.error("Unexpected API error", exception);
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Unexpected internal server error"
+        );
+        problemDetail.setType(INTERNAL_SERVER_ERROR_TYPE);
+        problemDetail.setTitle("Internal server error");
         problemDetail.setInstance(resolveInstance(request));
         return problemDetail;
     }

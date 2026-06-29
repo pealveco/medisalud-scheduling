@@ -18,7 +18,7 @@ Implementado:
 - `GET /api/appointments` funcional con filtros opcionales y combinables.
 - Validaciones declarativas para registro de médicos, pacientes y reserva/cancelación de citas.
 - Respuestas de validación con `ProblemDetail` y campo `errors`.
-- Respuestas `400`, `404` y `409` con `ProblemDetail` para rangos inválidos, recursos inexistentes, duplicidades, conflictos de franja, estado inválido de cita y bloqueo de paciente.
+- Respuestas `400`, `404`, `409` y `500` con `ProblemDetail` para rangos inválidos, recursos inexistentes, duplicidades, conflictos de franja, estado inválido de cita, bloqueo de paciente y errores no controlados.
 - PostgreSQL local con Docker Compose para perfil `local`.
 - H2 en memoria para perfil `test`.
 
@@ -500,6 +500,8 @@ Las URLs usadas en `type`, por ejemplo `https://medisalud.com/errors/patient-doc
 
 Las validaciones de entrada se manejan con Bean Validation en los request DTOs y un handler global con `ProblemDetail`. Los parámetros requeridos de query/path y los errores de conversión de tipo también responden con el mismo contrato de validación.
 
+Los errores no controlados se registran en logs y responden con `500` usando un mensaje genérico. Esto evita exponer detalles internos de implementación al cliente.
+
 Ejemplo `400`:
 
 ```json
@@ -539,6 +541,18 @@ Ejemplo `409` por conflicto de franja:
   "status": 409,
   "detail": "Doctor already has an appointment at YYYY-MM-DDT08:00",
   "instance": "/api/appointments"
+}
+```
+
+Ejemplo `500` por error no controlado:
+
+```json
+{
+  "type": "https://medisalud.com/errors/internal-server-error",
+  "title": "Internal server error",
+  "status": 500,
+  "detail": "Unexpected internal server error",
+  "instance": "/api/doctors"
 }
 ```
 

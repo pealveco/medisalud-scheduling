@@ -143,6 +143,30 @@ class ApiRestTest {
     }
 
     @Test
+    void shouldReturnProblemDetailWhenUnexpectedErrorOccurs() throws Exception {
+        String request = """
+                {
+                  "fullName": "Trigger Failure",
+                  "specialty": "Cardiology",
+                  "phone": "3001234567",
+                  "email": "trigger.failure@medisalud.com"
+                }
+                """;
+
+        client.perform(post("/api/doctors")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(request))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.type").value("https://medisalud.com/errors/internal-server-error"))
+                .andExpect(jsonPath("$.title").value("Internal server error"))
+                .andExpect(jsonPath("$.status").value(500))
+                .andExpect(jsonPath("$.detail").value("Unexpected internal server error"))
+                .andExpect(jsonPath("$.instance").value("/api/doctors"))
+                .andExpect(jsonPath("$.errors").doesNotExist());
+    }
+
+    @Test
     void shouldCreatePatientWhenPayloadIsValid() throws Exception {
         String request = """
                 {
@@ -624,7 +648,10 @@ class ApiRestTest {
     void shouldReturnNotFoundForInvalidPath() throws Exception {
         client.perform(get("/api/invalid")
                 .accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.type").value("https://medisalud.com/errors/resource-not-found"))
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.instance").value("/api/invalid"));
     }
 
     private void assertBadRequestWithFieldError(String path, String request, String fieldName) throws Exception {
