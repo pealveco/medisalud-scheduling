@@ -76,6 +76,21 @@ class ApiRestTest {
     }
 
     @Test
+    void shouldExposeOpenApiDocumentation() throws Exception {
+        client.perform(get("/v3/api-docs")
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.openapi").exists())
+                .andExpect(jsonPath("$.info.title").value("MediSalud Scheduling API"));
+    }
+
+    @Test
+    void shouldExposeSwaggerUi() throws Exception {
+        client.perform(get("/swagger-ui.html"))
+                .andExpect(status().is3xxRedirection());
+    }
+
+    @Test
     void shouldRejectDoctorRequestWhenFullNameIsTooShort() throws Exception {
         String request = """
                 {

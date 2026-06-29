@@ -29,12 +29,20 @@ import co.com.medisalud.usecase.createpatient.CreatePatientUseCase;
 import co.com.medisalud.usecase.getdoctoravailability.GetDoctorAvailabilityUseCase;
 import co.com.medisalud.usecase.listappointments.ListAppointmentsUseCase;
 import co.com.medisalud.usecase.rescheduleappointment.RescheduleAppointmentUseCase;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
@@ -60,6 +68,7 @@ import java.util.UUID;
 @RequestMapping(value = "/api", produces = MediaType.APPLICATION_JSON_VALUE)
 @RequiredArgsConstructor
 @Validated
+@Tag(name = "MediSalud Scheduling", description = "Medical appointment scheduling operations")
 public class ApiRest {
 
     private final CreateDoctorUseCase createDoctorUseCase;
@@ -80,6 +89,15 @@ public class ApiRest {
      * @param request doctor creation request
      * @return created doctor response
      */
+    @Operation(summary = "Register doctor", description = "Creates a doctor with specialty and optional contact data.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Doctor created",
+                    content = @Content(schema = @Schema(implementation = DoctorResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid request",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "500", description = "Unexpected error",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    })
     @PostMapping(path = "/doctors", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<DoctorResponse> createDoctor(@Valid @RequestBody CreateDoctorRequest request) {
         Doctor registeredDoctor = createDoctorUseCase.createDoctor(doctorMapper.toDomain(request));
@@ -92,6 +110,17 @@ public class ApiRest {
      * @param request patient creation request
      * @return created patient response
      */
+    @Operation(summary = "Register patient", description = "Creates a patient and enforces unique document identifier.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Patient created",
+                    content = @Content(schema = @Schema(implementation = PatientResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid request",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "409", description = "Duplicated document identifier",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "500", description = "Unexpected error",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    })
     @PostMapping(path = "/patients", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<PatientResponse> createPatient(@Valid @RequestBody CreatePatientRequest request) {
         Patient registeredPatient = createPatientUseCase.createPatient(patientMapper.toDomain(request));
@@ -104,6 +133,19 @@ public class ApiRest {
      * @param request appointment scheduling request
      * @return scheduled appointment response
      */
+    @Operation(summary = "Schedule appointment", description = "Creates a scheduled appointment after validating working hours and conflicts.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Appointment scheduled",
+                    content = @Content(schema = @Schema(implementation = AppointmentResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid slot or request",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "404", description = "Doctor or patient not found",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "409", description = "Slot conflict or blocked patient",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "500", description = "Unexpected error",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    })
     @PostMapping(path = "/appointments", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<AppointmentResponse> createAppointment(
             @Valid @RequestBody CreateAppointmentRequest request) {
@@ -119,6 +161,17 @@ public class ApiRest {
      * @param endDate last date included in the availability search
      * @return doctor availability grouped by date
      */
+    @Operation(summary = "Get doctor availability", description = "Returns free 30-minute slots for a doctor in a date range.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Availability returned",
+                    content = @Content(array = @ArraySchema(schema = @Schema(implementation = AvailabilityDayResponse.class)))),
+            @ApiResponse(responseCode = "400", description = "Invalid or missing date range",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "404", description = "Doctor not found",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "500", description = "Unexpected error",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    })
     @GetMapping(path = "/doctors/{id}/availability")
     public ResponseEntity<List<AvailabilityDayResponse>> getDoctorAvailability(
             @PathVariable("id") UUID id,
@@ -134,6 +187,17 @@ public class ApiRest {
      * @param id appointment identifier
      * @return cancelled appointment response
      */
+    @Operation(summary = "Cancel appointment", description = "Cancels a scheduled appointment and applies late-cancellation penalties when needed.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Appointment cancelled",
+                    content = @Content(schema = @Schema(implementation = CancelAppointmentResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Appointment not found",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "409", description = "Appointment cannot be cancelled in its current state",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "500", description = "Unexpected error",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    })
     @DeleteMapping(path = "/appointments/{id}")
     public ResponseEntity<CancelAppointmentResponse> cancelAppointment(@PathVariable("id") UUID id) {
         AppointmentCancellation cancellation = cancelAppointmentUseCase.cancelAppointment(id);
@@ -147,6 +211,19 @@ public class ApiRest {
      * @param request reschedule request
      * @return rescheduling response containing the original and new appointments
      */
+    @Operation(summary = "Reschedule appointment", description = "Atomically cancels the original appointment and creates a new scheduled appointment.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Appointment rescheduled",
+                    content = @Content(schema = @Schema(implementation = RescheduleAppointmentResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid new slot or request",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "404", description = "Appointment not found",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "409", description = "Slot conflict or invalid appointment state",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "500", description = "Unexpected error",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    })
     @PutMapping(path = "/appointments/{id}/reschedule", consumes = MediaType.APPLICATION_JSON_VALUE)
     @Transactional
     public ResponseEntity<RescheduleAppointmentResponse> rescheduleAppointment(
@@ -166,6 +243,15 @@ public class ApiRest {
      * @param endDate optional end date-time filter
      * @return appointments matching the supplied filters
      */
+    @Operation(summary = "List appointments", description = "Lists appointments using optional combinable filters.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Appointments returned",
+                    content = @Content(array = @ArraySchema(schema = @Schema(implementation = AppointmentResponse.class)))),
+            @ApiResponse(responseCode = "400", description = "Invalid filter value or date range",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "500", description = "Unexpected error",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    })
     @GetMapping(path = "/appointments")
     public ResponseEntity<List<AppointmentResponse>> listAppointments(
             @RequestParam(name = "doctorId", required = false) UUID doctorId,

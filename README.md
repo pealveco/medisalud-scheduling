@@ -33,6 +33,7 @@ Implementado:
 - PostgreSQL para runtime local
 - H2 para tests
 - Docker Compose
+- springdoc-openapi / Swagger UI
 - Clean Architecture Scaffold de Bancolombia
 
 ## Arquitectura
@@ -178,6 +179,22 @@ La API queda disponible en:
 ```text
 http://localhost:8080
 ```
+
+## Documentación OpenAPI
+
+Con la aplicación ejecutándose localmente, la documentación interactiva queda disponible en:
+
+```text
+http://localhost:8080/swagger-ui.html
+```
+
+La especificación OpenAPI en JSON queda disponible en:
+
+```text
+http://localhost:8080/v3/api-docs
+```
+
+Swagger UI se genera con `springdoc-openapi` y documenta los endpoints, DTOs de request/response y códigos de respuesta principales. Esta documentación complementa los ejemplos del README.
 
 ## Ejecutar Tests
 
