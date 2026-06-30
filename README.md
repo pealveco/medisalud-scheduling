@@ -262,6 +262,12 @@ medisalud.env.render.example
 
 El `Dockerfile` es multi-stage: primero compila el jar con Gradle y después ejecuta la aplicación con una imagen JRE liviana. Render inyecta la variable `PORT`; la aplicación la usa automáticamente cuando `SERVER_PORT` no está definido.
 
+URL pública del despliegue:
+
+```text
+https://medisalud-scheduling-api.onrender.com
+```
+
 Pasos en Render:
 
 1. Crear una base PostgreSQL administrada.
@@ -294,6 +300,19 @@ El health check recomendado para Render es:
 
 ```text
 /actuator/health
+```
+
+Validación rápida del despliegue:
+
+```bash
+curl -i https://medisalud-scheduling-api.onrender.com/actuator/health
+curl -i https://medisalud-scheduling-api.onrender.com/swagger-ui.html
+```
+
+Para conectar herramientas externas como DBeaver a PostgreSQL en Render se debe usar el `External Database URL`, no el hostname interno. Según la configuración de Render/DBeaver, la conexión puede funcionar sin SSL o requerir:
+
+```text
+sslmode=require
 ```
 
 ## Endpoints Implementados
