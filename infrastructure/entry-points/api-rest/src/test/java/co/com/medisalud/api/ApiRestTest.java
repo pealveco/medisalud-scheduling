@@ -45,10 +45,14 @@ class ApiRestTest {
     @Autowired
     private AppointmentRepository appointmentRepository;
 
+    @Autowired
+    private TestConfig.TestDataCleaner testDataCleaner;
+
     private MockMvc client;
 
     @BeforeEach
     void setup() {
+        testDataCleaner.reset();
         client = MockMvcBuilders.webAppContextSetup(context).build();
     }
 

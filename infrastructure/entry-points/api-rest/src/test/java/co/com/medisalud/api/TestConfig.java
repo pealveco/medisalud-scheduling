@@ -83,8 +83,47 @@ public class TestConfig {
     }
 
     @Bean
+    public TestDataCleaner testDataCleaner(
+            DoctorRepository doctorRepository,
+            PatientRepository patientRepository,
+            AppointmentRepository appointmentRepository,
+            PenaltyRepository penaltyRepository) {
+        return new TestDataCleaner(
+                (InMemoryDoctorRepository) doctorRepository,
+                (InMemoryPatientRepository) patientRepository,
+                (InMemoryAppointmentRepository) appointmentRepository,
+                (InMemoryPenaltyRepository) penaltyRepository);
+    }
+
+    @Bean
     public Clock clock() {
         return Clock.systemDefaultZone();
+    }
+
+    static class TestDataCleaner {
+
+        private final InMemoryDoctorRepository doctorRepository;
+        private final InMemoryPatientRepository patientRepository;
+        private final InMemoryAppointmentRepository appointmentRepository;
+        private final InMemoryPenaltyRepository penaltyRepository;
+
+        private TestDataCleaner(
+                InMemoryDoctorRepository doctorRepository,
+                InMemoryPatientRepository patientRepository,
+                InMemoryAppointmentRepository appointmentRepository,
+                InMemoryPenaltyRepository penaltyRepository) {
+            this.doctorRepository = doctorRepository;
+            this.patientRepository = patientRepository;
+            this.appointmentRepository = appointmentRepository;
+            this.penaltyRepository = penaltyRepository;
+        }
+
+        void reset() {
+            doctorRepository.reset();
+            patientRepository.reset();
+            appointmentRepository.reset();
+            penaltyRepository.reset();
+        }
     }
 
     private static class InMemoryDoctorRepository implements DoctorRepository {
@@ -92,6 +131,11 @@ public class TestConfig {
         private final Map<UUID, Doctor> doctorsById = new ConcurrentHashMap<>();
 
         private InMemoryDoctorRepository() {
+            reset();
+        }
+
+        private void reset() {
+            doctorsById.clear();
             doctorsById.put(EXISTING_DOCTOR_ID, Doctor.builder()
                     .id(EXISTING_DOCTOR_ID)
                     .fullName("Carlos Mejia")
@@ -125,6 +169,12 @@ public class TestConfig {
         private final Map<String, Patient> patientsByDocumentId = new ConcurrentHashMap<>();
 
         private InMemoryPatientRepository() {
+            reset();
+        }
+
+        private void reset() {
+            patientsById.clear();
+            patientsByDocumentId.clear();
             save(Patient.builder()
                     .id(EXISTING_PATIENT_ID)
                     .fullName("Mateo Perez")
@@ -172,6 +222,10 @@ public class TestConfig {
     private static class InMemoryAppointmentRepository implements AppointmentRepository {
 
         private final Map<UUID, Appointment> appointmentsById = new ConcurrentHashMap<>();
+
+        private void reset() {
+            appointmentsById.clear();
+        }
 
         @Override
         public Appointment save(Appointment appointment) {
@@ -238,6 +292,10 @@ public class TestConfig {
     private static class InMemoryPenaltyRepository implements PenaltyRepository {
 
         private final Map<UUID, Penalty> penaltiesById = new ConcurrentHashMap<>();
+
+        private void reset() {
+            penaltiesById.clear();
+        }
 
         @Override
         public Penalty save(Penalty penalty) {
