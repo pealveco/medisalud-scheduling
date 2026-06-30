@@ -351,3 +351,4 @@ medisalud.test
 !.env.example
 !medisalud.env.local.example
 !medisalud.env.render.example
+/medisalud.env
