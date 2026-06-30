@@ -1,0 +1,10 @@
+dependencies {
+    implementation project(':usecase')
+    implementation project(':model')
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework:spring-tx'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17'
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+}

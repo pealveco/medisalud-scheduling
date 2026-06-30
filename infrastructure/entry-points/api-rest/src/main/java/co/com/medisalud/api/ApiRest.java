@@ -1,0 +1,275 @@
+package co.com.medisalud.api;
+
+import co.com.medisalud.api.dto.request.CreateAppointmentRequest;
+import co.com.medisalud.api.dto.request.CreateDoctorRequest;
+import co.com.medisalud.api.dto.request.CreatePatientRequest;
+import co.com.medisalud.api.dto.request.RescheduleAppointmentRequest;
+import co.com.medisalud.api.dto.response.AppointmentResponse;
+import co.com.medisalud.api.dto.response.AppointmentStatusDto;
+import co.com.medisalud.api.dto.response.AvailabilityDayResponse;
+import co.com.medisalud.api.dto.response.CancelAppointmentResponse;
+import co.com.medisalud.api.dto.response.DoctorResponse;
+import co.com.medisalud.api.dto.response.PatientResponse;
+import co.com.medisalud.api.dto.response.RescheduleAppointmentResponse;
+import co.com.medisalud.api.mapper.AppointmentMapper;
+import co.com.medisalud.api.mapper.AvailabilityMapper;
+import co.com.medisalud.api.mapper.DoctorMapper;
+import co.com.medisalud.api.mapper.PatientMapper;
+import co.com.medisalud.model.appointment.Appointment;
+import co.com.medisalud.model.appointmentcancellation.AppointmentCancellation;
+import co.com.medisalud.model.appointmentreschedule.AppointmentReschedule;
+import co.com.medisalud.model.appointmentsearchcriteria.AppointmentSearchCriteria;
+import co.com.medisalud.model.availabilityday.AvailabilityDay;
+import co.com.medisalud.model.doctor.Doctor;
+import co.com.medisalud.model.patient.Patient;
+import co.com.medisalud.usecase.cancelappointment.CancelAppointmentUseCase;
+import co.com.medisalud.usecase.createappointment.CreateAppointmentUseCase;
+import co.com.medisalud.usecase.createdoctor.CreateDoctorUseCase;
+import co.com.medisalud.usecase.createpatient.CreatePatientUseCase;
+import co.com.medisalud.usecase.getdoctoravailability.GetDoctorAvailabilityUseCase;
+import co.com.medisalud.usecase.listappointments.ListAppointmentsUseCase;
+import co.com.medisalud.usecase.rescheduleappointment.RescheduleAppointmentUseCase;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * REST controller that defines the HTTP contracts for the appointment scheduling API.
+ */
+@RestController
+@RequestMapping(value = "/api", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequiredArgsConstructor
+@Validated
+@Tag(name = "MediSalud Scheduling", description = "Medical appointment scheduling operations")
+public class ApiRest {
+
+    private final CreateDoctorUseCase createDoctorUseCase;
+    private final CreatePatientUseCase createPatientUseCase;
+    private final CreateAppointmentUseCase createAppointmentUseCase;
+    private final GetDoctorAvailabilityUseCase getDoctorAvailabilityUseCase;
+    private final CancelAppointmentUseCase cancelAppointmentUseCase;
+    private final ListAppointmentsUseCase listAppointmentsUseCase;
+    private final RescheduleAppointmentUseCase rescheduleAppointmentUseCase;
+    private final AppointmentMapper appointmentMapper;
+    private final AvailabilityMapper availabilityMapper;
+    private final DoctorMapper doctorMapper;
+    private final PatientMapper patientMapper;
+
+    /**
+     * Creates a doctor from a validated request body.
+     *
+     * @param request doctor creation request
+     * @return created doctor response
+     */
+    @Operation(summary = "Register doctor", description = "Creates a doctor with specialty and optional contact data.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Doctor created",
+                    content = @Content(schema = @Schema(implementation = DoctorResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid request",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "500", description = "Unexpected error",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    })
+    @PostMapping(path = "/doctors", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<DoctorResponse> createDoctor(@Valid @RequestBody CreateDoctorRequest request) {
+        Doctor registeredDoctor = createDoctorUseCase.createDoctor(doctorMapper.toDomain(request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(doctorMapper.toResponse(registeredDoctor));
+    }
+
+    /**
+     * Creates a patient from a validated request body.
+     *
+     * @param request patient creation request
+     * @return created patient response
+     */
+    @Operation(summary = "Register patient", description = "Creates a patient and enforces unique document identifier.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Patient created",
+                    content = @Content(schema = @Schema(implementation = PatientResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid request",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "409", description = "Duplicated document identifier",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "500", description = "Unexpected error",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    })
+    @PostMapping(path = "/patients", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<PatientResponse> createPatient(@Valid @RequestBody CreatePatientRequest request) {
+        Patient registeredPatient = createPatientUseCase.createPatient(patientMapper.toDomain(request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(patientMapper.toResponse(registeredPatient));
+    }
+
+    /**
+     * Schedules an appointment from a validated request body.
+     *
+     * @param request appointment scheduling request
+     * @return scheduled appointment response
+     */
+    @Operation(summary = "Schedule appointment", description = "Creates a scheduled appointment after validating working hours and conflicts.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Appointment scheduled",
+                    content = @Content(schema = @Schema(implementation = AppointmentResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid slot or request",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "404", description = "Doctor or patient not found",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "409", description = "Slot conflict or blocked patient",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "500", description = "Unexpected error",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    })
+    @PostMapping(path = "/appointments", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<AppointmentResponse> createAppointment(
+            @Valid @RequestBody CreateAppointmentRequest request) {
+        Appointment scheduledAppointment = createAppointmentUseCase.createAppointment(appointmentMapper.toDomain(request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(appointmentMapper.toResponse(scheduledAppointment));
+    }
+
+    /**
+     * Returns available appointment slots for a doctor between two dates.
+     *
+     * @param id doctor identifier
+     * @param startDate first date included in the availability search
+     * @param endDate last date included in the availability search
+     * @return doctor availability grouped by date
+     */
+    @Operation(summary = "Get doctor availability", description = "Returns free 30-minute slots for a doctor in a date range.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Availability returned",
+                    content = @Content(array = @ArraySchema(schema = @Schema(implementation = AvailabilityDayResponse.class)))),
+            @ApiResponse(responseCode = "400", description = "Invalid or missing date range",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "404", description = "Doctor not found",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "500", description = "Unexpected error",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    })
+    @GetMapping(path = "/doctors/{id}/availability")
+    public ResponseEntity<List<AvailabilityDayResponse>> getDoctorAvailability(
+            @PathVariable("id") UUID id,
+            @NotNull @RequestParam("startDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @NotNull @RequestParam("endDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        List<AvailabilityDay> availability = getDoctorAvailabilityUseCase.getAvailability(id, startDate, endDate);
+        return ResponseEntity.ok(availabilityMapper.toResponse(availability));
+    }
+
+    /**
+     * Cancels an existing appointment.
+     *
+     * @param id appointment identifier
+     * @return cancelled appointment response
+     */
+    @Operation(summary = "Cancel appointment", description = "Cancels a scheduled appointment and applies late-cancellation penalties when needed.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Appointment cancelled",
+                    content = @Content(schema = @Schema(implementation = CancelAppointmentResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Appointment not found",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "409", description = "Appointment cannot be cancelled in its current state",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "500", description = "Unexpected error",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    })
+    @DeleteMapping(path = "/appointments/{id}")
+    public ResponseEntity<CancelAppointmentResponse> cancelAppointment(@PathVariable("id") UUID id) {
+        AppointmentCancellation cancellation = cancelAppointmentUseCase.cancelAppointment(id);
+        return ResponseEntity.ok(appointmentMapper.toCancelResponse(cancellation));
+    }
+
+    /**
+     * Reschedules an existing appointment atomically.
+     *
+     * @param id original appointment identifier
+     * @param request reschedule request
+     * @return rescheduling response containing the original and new appointments
+     */
+    @Operation(summary = "Reschedule appointment", description = "Atomically cancels the original appointment and creates a new scheduled appointment.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Appointment rescheduled",
+                    content = @Content(schema = @Schema(implementation = RescheduleAppointmentResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid new slot or request",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "404", description = "Appointment not found",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "409", description = "Slot conflict or invalid appointment state",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "500", description = "Unexpected error",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    })
+    @PutMapping(path = "/appointments/{id}/reschedule", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @Transactional
+    public ResponseEntity<RescheduleAppointmentResponse> rescheduleAppointment(
+            @PathVariable("id") UUID id,
+            @Valid @RequestBody RescheduleAppointmentRequest request) {
+        AppointmentReschedule reschedule = rescheduleAppointmentUseCase.rescheduleAppointment(id, request.newDateTime());
+        return ResponseEntity.ok(appointmentMapper.toRescheduleResponse(reschedule));
+    }
+
+    /**
+     * Lists appointments using optional combinable filters.
+     *
+     * @param doctorId optional doctor identifier filter
+     * @param patientId optional patient identifier filter
+     * @param status optional appointment status filter
+     * @param startDate optional start date-time filter
+     * @param endDate optional end date-time filter
+     * @return appointments matching the supplied filters
+     */
+    @Operation(summary = "List appointments", description = "Lists appointments using optional combinable filters.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Appointments returned",
+                    content = @Content(array = @ArraySchema(schema = @Schema(implementation = AppointmentResponse.class)))),
+            @ApiResponse(responseCode = "400", description = "Invalid filter value or date range",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "500", description = "Unexpected error",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    })
+    @GetMapping(path = "/appointments")
+    public ResponseEntity<List<AppointmentResponse>> listAppointments(
+            @RequestParam(name = "doctorId", required = false) UUID doctorId,
+            @RequestParam(name = "patientId", required = false) UUID patientId,
+            @RequestParam(name = "status", required = false) AppointmentStatusDto status,
+            @RequestParam(name = "startDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime startDate,
+            @RequestParam(name = "endDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime endDate) {
+        AppointmentSearchCriteria criteria = appointmentMapper.toSearchCriteria(
+                doctorId,
+                patientId,
+                status,
+                startDate,
+                endDate
+        );
+        List<Appointment> appointments = listAppointmentsUseCase.listAppointments(criteria);
+        return ResponseEntity.ok(appointmentMapper.toResponse(appointments));
+    }
+
+}

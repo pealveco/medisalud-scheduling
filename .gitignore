@@ -333,4 +333,22 @@ gradle-app.setting
 # HPROF
 # -----
 *.hprof
-build-cache
+
+# Project-local generated cache
+build-cache/
+
+# Local planning/spec notes
+SPEC.md
+
+# Local environment variables
+.env
+*.env.local
+*.env.test
+*.env.production
+medisalud.env.*
+medisalud.production
+medisalud.test
+!.env.example
+!medisalud.env.local.example
+!medisalud.env.render.example
+/medisalud.env
