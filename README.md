@@ -85,6 +85,12 @@ El archivo versionado de referencia para desarrollo local es:
 medisalud.env.local.example
 ```
 
+Para despliegue en Render existe una plantilla separada:
+
+```text
+medisalud.env.render.example
+```
+
 Cada desarrollador debe crear su archivo local real:
 
 ```bash
@@ -236,6 +242,59 @@ Comando ejecutado por CI:
 ```
 
 Los tests corren con H2 en memoria, por lo que el pipeline no requiere PostgreSQL ni Docker Compose.
+
+## Despliegue en Render
+
+El despliegue en Render usa:
+
+- PostgreSQL administrado por Render.
+- Web Service construido con Docker desde el repositorio.
+- GitHub Actions como disparador de despliegue mediante Deploy Hook.
+- Despliegue solo desde `main`, después de que el workflow `CI` termina exitosamente.
+
+Archivos relevantes:
+
+```text
+deployment/Dockerfile
+.github/workflows/cd-render.yml
+medisalud.env.render.example
+```
+
+El `Dockerfile` es multi-stage: primero compila el jar con Gradle y después ejecuta la aplicación con una imagen JRE liviana. Render inyecta la variable `PORT`; la aplicación la usa automáticamente cuando `SERVER_PORT` no está definido.
+
+Pasos en Render:
+
+1. Crear una base PostgreSQL administrada.
+2. Crear un Web Service conectado al repositorio.
+3. Configurar el runtime como Docker.
+4. Usar `deployment/Dockerfile` como Dockerfile path.
+5. Configurar las variables de entorno tomando como referencia `medisalud.env.render.example`.
+6. Desactivar Auto Deploy en Render, porque el despliegue lo dispara GitHub Actions.
+7. Crear un Deploy Hook en Render.
+8. Guardar ese hook en GitHub como secret `RENDER_DEPLOY_HOOK_URL`.
+
+Variables esperadas en Render:
+
+```env
+SPRING_PROFILES_ACTIVE=prod
+APP_NAME=MediSalud-Scheduling
+DB_URL=jdbc:postgresql://RENDER_DB_HOST:5432/medisalud
+DB_USER=REPLACE_ME
+DB_PASS=REPLACE_ME
+DB_DRIVER=org.postgresql.Driver
+DB_DIALECT=org.hibernate.dialect.PostgreSQLDialect
+JPA_DDL_AUTO=update
+CORS_ALLOWED_ORIGINS=https://YOUR_RENDER_APP.onrender.com
+MANAGEMENT_ENDPOINTS=health,prometheus
+```
+
+Nota: para este MVP se usa `JPA_DDL_AUTO=update` en Render porque aún no hay migraciones de base de datos. En producción real convendría usar Flyway o Liquibase y cambiar a `validate`.
+
+El health check recomendado para Render es:
+
+```text
+/actuator/health
+```
 
 ## Endpoints Implementados
 
