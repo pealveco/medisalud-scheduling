@@ -67,6 +67,8 @@ Parameters:
     Type: String
     NoEcho: true
     MinLength: 12
+    AllowedPattern: ^[A-Za-z0-9!#$%&()*+,\-.:;<=>?\[\]^_`{|}~]+$
+    ConstraintDescription: Use at least 12 printable ASCII characters, excluding slash, at sign, double quote and spaces.
     Description: PostgreSQL master password for RDS.
 
   DbInstanceClass:
@@ -215,7 +217,7 @@ Resources:
           set -eux
 
           dnf update -y
-          dnf install -y docker git curl
+          dnf install -y docker git
 
           systemctl enable docker
           systemctl start docker
