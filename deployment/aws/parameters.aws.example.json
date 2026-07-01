@@ -1,0 +1,42 @@
+[
+  {
+    "ParameterKey": "KeyName",
+    "ParameterValue": "medisalud-scheduling-key"
+  },
+  {
+    "ParameterKey": "VpcId",
+    "ParameterValue": "vpc-REPLACE_ME"
+  },
+  {
+    "ParameterKey": "SubnetId",
+    "ParameterValue": "subnet-public-REPLACE_ME"
+  },
+  {
+    "ParameterKey": "DatabaseSubnetIds",
+    "ParameterValue": "subnet-db-a-REPLACE_ME,subnet-db-b-REPLACE_ME"
+  },
+  {
+    "ParameterKey": "RepositoryBranch",
+    "ParameterValue": "main"
+  },
+  {
+    "ParameterKey": "DbName",
+    "ParameterValue": "medisalud"
+  },
+  {
+    "ParameterKey": "DbUser",
+    "ParameterValue": "medisalud"
+  },
+  {
+    "ParameterKey": "DbPassword",
+    "ParameterValue": "REPLACE_WITH_STRONG_PASSWORD"
+  },
+  {
+    "ParameterKey": "CorsAllowedOrigins",
+    "ParameterValue": "*"
+  },
+  {
+    "ParameterKey": "AllocateElasticIp",
+    "ParameterValue": "true"
+  }
+]

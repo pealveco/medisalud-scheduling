@@ -353,4 +353,6 @@ medisalud.test
 !medisalud.env.render.example
 !medisalud.env.aws.example
 /medisalud.env
+deployment/aws/*.pem
+deployment/aws/parameters.aws.json
 AI_HANDOFF.md
