@@ -329,7 +329,19 @@ URL pública del despliegue:
 
 ```text
 http://44.207.98.248
+http://ec2-44-207-98-248.compute-1.amazonaws.com
 ```
+
+La IP publica y el Public DNS asignados por AWS pueden usarse indistintamente mientras el DNS resuelva a esa misma instancia EC2. Para navegador, `curl` y SSH funcionan como alias del mismo host:
+
+```bash
+curl -i http://44.207.98.248/actuator/health
+curl -i http://ec2-44-207-98-248.compute-1.amazonaws.com/actuator/health
+ssh ec2-user@44.207.98.248
+ssh ec2-user@ec2-44-207-98-248.compute-1.amazonaws.com
+```
+
+Si no se mantiene una Elastic IP, la IP publica y el Public DNS pueden cambiar al detener e iniciar la instancia. Para CORS se debe configurar el origen exacto que se vaya a usar desde el navegador, por ejemplo `http://44.207.98.248` o `http://ec2-44-207-98-248.compute-1.amazonaws.com`.
 
 Arquitectura implementada:
 
@@ -387,7 +399,7 @@ Configuracion usada:
 3. Crear el stack de CloudFormation con `deployment/aws/cloudformation.yml`.
 4. Informar los parametros del stack: repositorio, rama, subnets de RDS, nombre/usuario/password de DB, puerto y CORS.
 5. Esperar el bootstrap inicial. RDS puede tardar varios minutos; luego EC2 instala Docker, crea un swap de 2 GB para compilar con mas margen, construye la imagen y levanta Docker Compose.
-6. Tomar de los outputs el `AppUrl`, el `PublicIp` y el `DatabaseEndpoint`.
+6. Tomar de los outputs el `AppUrl`, el `PublicIp`, el `PublicDnsName` y el `DatabaseEndpoint`.
 7. Configurar secrets en GitHub para redeploys posteriores desde `CD AWS`.
 
 Secrets requeridos por `.github/workflows/cd-aws.yml`:
@@ -419,7 +431,7 @@ DB_PASS=REPLACE_ME
 DB_DRIVER=org.postgresql.Driver
 DB_DIALECT=org.hibernate.dialect.PostgreSQLDialect
 JPA_DDL_AUTO=update
-CORS_ALLOWED_ORIGINS=http://EC2_PUBLIC_DNS
+CORS_ALLOWED_ORIGINS=http://EC2_PUBLIC_DNS_OR_IP
 MANAGEMENT_ENDPOINTS=health,prometheus
 ```
 
@@ -432,6 +444,8 @@ Validacion del despliegue AWS:
 ```bash
 curl -i http://44.207.98.248/actuator/health
 curl -I http://44.207.98.248/swagger-ui.html
+curl -i http://ec2-44-207-98-248.compute-1.amazonaws.com/actuator/health
+curl -I http://ec2-44-207-98-248.compute-1.amazonaws.com/swagger-ui.html
 ```
 
 Prueba funcional contra RDS:
