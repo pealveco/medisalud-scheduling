@@ -1,0 +1,319 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: MediSalud Scheduling demo deployment on EC2 with private RDS PostgreSQL.
+
+Parameters:
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Existing EC2 key pair used for SSH deployment.
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC where the EC2 instance will be created.
+
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: Public subnet with internet access.
+
+  DatabaseSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Private or public subnets for the RDS subnet group. Use at least two subnets in different AZs.
+
+  InstanceType:
+    Type: String
+    Default: t3.micro
+    AllowedValues:
+      - t3.micro
+      - t2.micro
+    Description: Small instance for demo/free-tier oriented deployment.
+
+  SSHLocation:
+    Type: String
+    Default: 0.0.0.0/0
+    Description: CIDR allowed to SSH into the instance. Restrict this whenever possible.
+
+  AppPort:
+    Type: Number
+    Default: 80
+    Description: Public HTTP port exposed by the application.
+
+  VolumeSize:
+    Type: Number
+    Default: 16
+    MinValue: 8
+    MaxValue: 30
+    Description: Root EBS volume size in GiB.
+
+  RepositoryUrl:
+    Type: String
+    Default: https://github.com/pealveco/medisalud-scheduling.git
+    Description: Public Git repository used for the initial EC2 bootstrap deployment.
+
+  RepositoryBranch:
+    Type: String
+    Default: main
+    Description: Git branch used for the initial EC2 bootstrap deployment.
+
+  DbName:
+    Type: String
+    Default: medisalud
+    Description: PostgreSQL database name created in RDS.
+
+  DbUser:
+    Type: String
+    Default: medisalud
+    Description: PostgreSQL master username for RDS.
+
+  DbPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 12
+    Description: PostgreSQL master password for RDS.
+
+  DbInstanceClass:
+    Type: String
+    Default: db.t3.micro
+    AllowedValues:
+      - db.t3.micro
+      - db.t4g.micro
+    Description: Small RDS instance class for demo/free-tier oriented deployment.
+
+  DbAllocatedStorage:
+    Type: Number
+    Default: 20
+    MinValue: 20
+    MaxValue: 100
+    Description: RDS storage size in GiB.
+
+  JpaDdlAuto:
+    Type: String
+    Default: update
+    AllowedValues:
+      - update
+      - validate
+      - none
+    Description: Hibernate ddl-auto value for the deployed app.
+
+  CorsAllowedOrigins:
+    Type: String
+    Default: '*'
+    Description: CORS allowed origins for the deployed app. Use the final public URL when available.
+
+  AllocateElasticIp:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Create and associate an Elastic IP to keep a stable public IP. This can generate cost.
+
+Conditions:
+  ShouldAllocateElasticIp: !Equals [!Ref AllocateElasticIp, 'true']
+
+Resources:
+  MedisaludSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP and SSH for MediSalud demo deployment.
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref AppPort
+          ToPort: !Ref AppPort
+          CidrIp: 0.0.0.0/0
+          Description: Public HTTP access.
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref SSHLocation
+          Description: SSH access for GitHub Actions deployment.
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Allow outbound traffic.
+      Tags:
+        - Key: Name
+          Value: medisalud-scheduling-sg
+
+  MedisaludDatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow PostgreSQL access only from the MediSalud EC2 instance.
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref MedisaludSecurityGroup
+          Description: PostgreSQL access from application EC2 security group.
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Allow outbound traffic.
+      Tags:
+        - Key: Name
+          Value: medisalud-scheduling-rds-sg
+
+  MedisaludDatabaseSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for MediSalud PostgreSQL RDS.
+      SubnetIds: !Ref DatabaseSubnetIds
+      Tags:
+        - Key: Name
+          Value: medisalud-scheduling-rds-subnet-group
+
+  MedisaludDatabase:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      Engine: postgres
+      DBInstanceClass: !Ref DbInstanceClass
+      AllocatedStorage: !Ref DbAllocatedStorage
+      DBName: !Ref DbName
+      MasterUsername: !Ref DbUser
+      MasterUserPassword: !Ref DbPassword
+      VPCSecurityGroups:
+        - !Ref MedisaludDatabaseSecurityGroup
+      DBSubnetGroupName: !Ref MedisaludDatabaseSubnetGroup
+      PubliclyAccessible: false
+      MultiAZ: false
+      BackupRetentionPeriod: 0
+      DeletionProtection: false
+      AutoMinorVersionUpgrade: true
+      CopyTagsToSnapshot: true
+      Tags:
+        - Key: Name
+          Value: medisalud-scheduling-rds
+
+  MedisaludInstance:
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - MedisaludDatabase
+    Properties:
+      ImageId: '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}'
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: 0
+          SubnetId: !Ref SubnetId
+          GroupSet:
+            - !Ref MedisaludSecurityGroup
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: !Ref VolumeSize
+            VolumeType: gp3
+            DeleteOnTermination: true
+      Tags:
+        - Key: Name
+          Value: medisalud-scheduling-demo
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -eux
+
+          dnf update -y
+          dnf install -y docker git curl
+
+          systemctl enable docker
+          systemctl start docker
+          usermod -aG docker ec2-user
+
+          if [ ! -f /swapfile ]; then
+            fallocate -l 2G /swapfile
+            chmod 600 /swapfile
+            mkswap /swapfile
+            swapon /swapfile
+            echo '/swapfile none swap sw 0 0' >> /etc/fstab
+          fi
+
+          mkdir -p /opt/medisalud
+          chown -R ec2-user:ec2-user /opt/medisalud
+
+          if ! docker compose version >/dev/null 2>&1; then
+            mkdir -p /usr/local/lib/docker/cli-plugins
+            curl -SL https://github.com/docker/compose/releases/download/v2.32.4/docker-compose-linux-x86_64 \
+              -o /usr/local/lib/docker/cli-plugins/docker-compose
+            chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+          fi
+
+          REPO_DIR=/opt/medisalud/source
+          rm -rf $REPO_DIR
+          git clone --branch ${RepositoryBranch} --depth 1 ${RepositoryUrl} $REPO_DIR
+
+          cd $REPO_DIR
+          docker build -f deployment/Dockerfile -t medisalud-scheduling:aws .
+
+          cp deployment/aws/docker-compose.aws.yml /opt/medisalud/docker-compose.aws.yml
+
+          cat > /opt/medisalud/medisalud.env.aws <<'ENVEOF'
+          SPRING_PROFILES_ACTIVE=prod
+          APP_NAME=MediSalud-Scheduling
+          APP_PORT=${AppPort}
+          DB_URL=jdbc:postgresql://${MedisaludDatabase.Endpoint.Address}:${MedisaludDatabase.Endpoint.Port}/${DbName}
+          DB_USER=${DbUser}
+          DB_PASS=${DbPassword}
+          DB_DRIVER=org.postgresql.Driver
+          DB_DIALECT=org.hibernate.dialect.PostgreSQLDialect
+          JPA_DDL_AUTO=${JpaDdlAuto}
+          CORS_ALLOWED_ORIGINS=${CorsAllowedOrigins}
+          MANAGEMENT_ENDPOINTS=health,prometheus
+          ENVEOF
+
+          chown ec2-user:ec2-user /opt/medisalud/medisalud.env.aws /opt/medisalud/docker-compose.aws.yml
+          chmod 600 /opt/medisalud/medisalud.env.aws
+
+          cd /opt/medisalud
+          docker compose --env-file medisalud.env.aws -f docker-compose.aws.yml up -d
+
+  MedisaludElasticIp:
+    Type: AWS::EC2::EIP
+    Condition: ShouldAllocateElasticIp
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: medisalud-scheduling-eip
+
+  MedisaludElasticIpAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Condition: ShouldAllocateElasticIp
+    Properties:
+      AllocationId: !GetAtt MedisaludElasticIp.AllocationId
+      InstanceId: !Ref MedisaludInstance
+
+Outputs:
+  InstanceId:
+    Description: EC2 instance id.
+    Value: !Ref MedisaludInstance
+
+  PublicIp:
+    Description: Stable Elastic IP when enabled; otherwise the dynamic public IP assigned to the EC2 instance.
+    Value: !If
+      - ShouldAllocateElasticIp
+      - !Ref MedisaludElasticIp
+      - !GetAtt MedisaludInstance.PublicIp
+
+  PublicDnsName:
+    Description: Public DNS name assigned to the EC2 instance. It can change after stop/start if no Elastic IP is used.
+    Value: !GetAtt MedisaludInstance.PublicDnsName
+
+  AppUrl:
+    Description: Application URL using the stable Elastic IP when enabled, otherwise the EC2 public DNS.
+    Value: !Sub
+      - 'http://${Host}:${Port}'
+      - Host: !If
+          - ShouldAllocateElasticIp
+          - !Ref MedisaludElasticIp
+          - !GetAtt MedisaludInstance.PublicDnsName
+        Port: !Ref AppPort
+
+  DatabaseEndpoint:
+    Description: Private RDS endpoint used by the application.
+    Value: !GetAtt MedisaludDatabase.Endpoint.Address
+
+  DatabasePort:
+    Description: RDS PostgreSQL port.
+    Value: !GetAtt MedisaludDatabase.Endpoint.Port

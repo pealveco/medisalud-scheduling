@@ -243,6 +243,11 @@ Comando ejecutado por CI:
 
 Los tests corren con H2 en memoria, por lo que el pipeline no requiere PostgreSQL ni Docker Compose.
 
+Flujo de ramas:
+
+- `pull_request` hacia `main`: ejecuta CI para validar build y tests, pero no despliega.
+- `push` o merge a `main`: ejecuta CI y, si termina exitosamente, dispara los workflows de CD.
+
 ## Despliegue en Render
 
 El despliegue en Render usa:
@@ -250,7 +255,7 @@ El despliegue en Render usa:
 - PostgreSQL administrado por Render.
 - Web Service construido con Docker desde el repositorio.
 - GitHub Actions como disparador de despliegue mediante Deploy Hook.
-- Despliegue solo desde `main`, después de que el workflow `CI` termina exitosamente.
+- Despliegue solo cuando `main` recibe cambios, ya sea por merge de PR o push directo, después de que el workflow `CI` termina exitosamente.
 
 Archivos relevantes:
 
@@ -314,6 +319,88 @@ Para conectar herramientas externas como DBeaver a PostgreSQL en Render se debe 
 ```text
 sslmode=require
 ```
+
+## Despliegue en AWS
+
+El despliegue AWS es opcional y paralelo al despliegue en Render. No modifica el workflow de CI ni el CD de Render.
+
+Arquitectura propuesta:
+
+- Una instancia EC2 pequena (`t3.micro` o `t2.micro`).
+- Docker Compose en la instancia.
+- Contenedor de la API.
+- Base de datos PostgreSQL administrada en RDS.
+- RDS privado, sin exposicion publica; solo acepta trafico desde el security group de EC2.
+- Sin Load Balancer.
+- Elastic IP opcional para mantener una IP publica estable durante la revision.
+- CloudFormation realiza el bootstrap inicial: crea EC2, crea RDS, instala Docker, clona el repositorio, construye la imagen, crea el archivo de entorno y levanta la API conectada a RDS.
+
+Archivos relevantes:
+
+```text
+deployment/aws/cloudformation.yml
+deployment/aws/docker-compose.aws.yml
+.github/workflows/cd-aws.yml
+medisalud.env.aws.example
+```
+
+Riesgos/costos a tener en cuenta:
+
+- AWS Free Tier puede variar por cuenta, region y fecha. Revisar siempre el panel de Billing.
+- RDS puede generar costos si la cuenta no tiene Free Tier vigente, si se supera el almacenamiento incluido o si se dejan recursos activos mas tiempo del necesario.
+- Una instancia `t3.micro` con Spring Boot tiene memoria suficiente para demo, pero no para carga real.
+- Para asegurar una URL/IP estable, el template puede crear una Elastic IP. AWS cobra las Elastic IP tanto en uso como sin uso, por lo que conviene mantenerla solo durante la ventana de evaluacion.
+- Si se usa SSH desde GitHub Actions, el puerto 22 debe permitir acceso desde los runners de GitHub o configurarse una estrategia mas segura.
+- Despues de la revision del evaluador, eliminare el stack de CloudFormation o detendre los recursos para evitar cargos, jejeje.
+
+Configuracion prevista para habilitar AWS:
+
+Esta configuracion deja preparado un despliegue adicional en AWS. El despliegue principal ya funcional es Render; AWS queda como alternativa paralela si se decide activarla.
+
+1. Crear o seleccionar un Key Pair EC2.
+2. Seleccionar VPC, una subnet publica para EC2 y al menos dos subnets para el DB Subnet Group de RDS.
+3. Crear el stack de CloudFormation con `deployment/aws/cloudformation.yml`.
+4. Informar los parametros del stack: repositorio, rama, subnets de RDS, nombre/usuario/password de DB, puerto y CORS.
+5. Esperar el bootstrap inicial. RDS puede tardar varios minutos; luego EC2 instala Docker, crea un swap de 2 GB para compilar con mas margen, construye la imagen y levanta Docker Compose.
+6. Tomar de los outputs el `AppUrl`, el `PublicIp` y el `DatabaseEndpoint`.
+7. Configurar secrets en GitHub para redeploys posteriores desde `CD AWS`.
+
+Secrets requeridos por `.github/workflows/cd-aws.yml`:
+
+```text
+AWS_EC2_HOST      -> Public DNS o IP publica de la instancia EC2
+AWS_EC2_USER      -> Usuario SSH, normalmente ec2-user en Amazon Linux
+AWS_EC2_SSH_KEY   -> Llave privada PEM del Key Pair
+AWS_ENV_FILE      -> Contenido tipo .env basado en medisalud.env.aws.example
+```
+
+Variable requerida para habilitar el CD AWS:
+
+```text
+AWS_DEPLOY_ENABLED=true
+```
+
+Mientras esta variable no exista o no tenga valor `true`, el workflow `CD AWS` queda omitido. Esto evita fallos antes de crear la infraestructura y configurar los secrets.
+
+Ejemplo de `AWS_ENV_FILE`:
+
+```env
+SPRING_PROFILES_ACTIVE=prod
+APP_NAME=MediSalud-Scheduling
+APP_PORT=80
+DB_URL=jdbc:postgresql://RDS_ENDPOINT:5432/medisalud
+DB_USER=medisalud
+DB_PASS=REPLACE_ME
+DB_DRIVER=org.postgresql.Driver
+DB_DIALECT=org.hibernate.dialect.PostgreSQLDialect
+JPA_DDL_AUTO=update
+CORS_ALLOWED_ORIGINS=http://EC2_PUBLIC_DNS
+MANAGEMENT_ENDPOINTS=health,prometheus
+```
+
+El workflow `CD AWS` se dispara cuando el workflow `CI` termina exitosamente en `main`. Construye la imagen Docker en GitHub Actions, la copia a EC2 por SSH y reinicia Docker Compose en `/opt/medisalud`. En cada redeploy conserva la misma RDS; solo reemplaza la imagen de la aplicacion.
+
+La primera creacion del stack ya deja la aplicacion desplegada. El workflow `CD AWS` queda para actualizaciones posteriores cuando `main` recibe cambios. Tambien puede ejecutarse manualmente desde GitHub Actions para validar el redeploy end-to-end despues de configurar los secrets.
 
 ## Endpoints Implementados
 

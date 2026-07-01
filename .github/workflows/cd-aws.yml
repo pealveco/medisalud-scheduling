@@ -1,0 +1,89 @@
+name: CD AWS
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows:
+      - CI
+    branches:
+      - main
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to AWS EC2
+    if: ${{ (github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')) && vars.AWS_DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+
+    env:
+      IMAGE_NAME: medisalud-scheduling:aws
+
+    steps:
+      - name: Validate AWS deployment secrets
+        run: |
+          missing=0
+
+          for secret_name in AWS_EC2_HOST AWS_EC2_USER AWS_EC2_SSH_KEY AWS_ENV_FILE; do
+            if [ -z "${!secret_name}" ]; then
+              echo "$secret_name secret is not configured."
+              missing=1
+            fi
+          done
+
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+        env:
+          AWS_EC2_HOST: ${{ secrets.AWS_EC2_HOST }}
+          AWS_EC2_USER: ${{ secrets.AWS_EC2_USER }}
+          AWS_EC2_SSH_KEY: ${{ secrets.AWS_EC2_SSH_KEY }}
+          AWS_ENV_FILE: ${{ secrets.AWS_ENV_FILE }}
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -f deployment/Dockerfile -t "$IMAGE_NAME" .
+
+      - name: Export Docker image
+        run: docker save "$IMAGE_NAME" | gzip > medisalud-scheduling-aws.tar.gz
+
+      - name: Prepare SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s' "$AWS_EC2_SSH_KEY" > ~/.ssh/aws_ec2_key
+          chmod 600 ~/.ssh/aws_ec2_key
+          ssh-keyscan -H "$AWS_EC2_HOST" >> ~/.ssh/known_hosts
+          printf '%s' "$AWS_ENV_FILE" > medisalud.env.aws
+        env:
+          AWS_EC2_HOST: ${{ secrets.AWS_EC2_HOST }}
+          AWS_EC2_SSH_KEY: ${{ secrets.AWS_EC2_SSH_KEY }}
+          AWS_ENV_FILE: ${{ secrets.AWS_ENV_FILE }}
+
+      - name: Upload deployment artifacts
+        run: |
+          ssh -i ~/.ssh/aws_ec2_key "$AWS_EC2_USER@$AWS_EC2_HOST" 'mkdir -p /opt/medisalud'
+          scp -i ~/.ssh/aws_ec2_key medisalud-scheduling-aws.tar.gz "$AWS_EC2_USER@$AWS_EC2_HOST:/opt/medisalud/"
+          scp -i ~/.ssh/aws_ec2_key deployment/aws/docker-compose.aws.yml "$AWS_EC2_USER@$AWS_EC2_HOST:/opt/medisalud/"
+          scp -i ~/.ssh/aws_ec2_key medisalud.env.aws "$AWS_EC2_USER@$AWS_EC2_HOST:/opt/medisalud/"
+        env:
+          AWS_EC2_HOST: ${{ secrets.AWS_EC2_HOST }}
+          AWS_EC2_USER: ${{ secrets.AWS_EC2_USER }}
+
+      - name: Restart AWS service
+        run: |
+          ssh -i ~/.ssh/aws_ec2_key "$AWS_EC2_USER@$AWS_EC2_HOST" '
+            set -e
+            cd /opt/medisalud
+            docker load -i medisalud-scheduling-aws.tar.gz
+            docker compose --env-file medisalud.env.aws -f docker-compose.aws.yml up -d
+            docker image prune -f
+          '
+        env:
+          AWS_EC2_HOST: ${{ secrets.AWS_EC2_HOST }}
+          AWS_EC2_USER: ${{ secrets.AWS_EC2_USER }}
