@@ -325,7 +325,13 @@ sslmode=require
 
 El despliegue AWS es opcional y paralelo al despliegue en Render. No modifica el workflow de CI ni el CD de Render.
 
-Arquitectura propuesta:
+URL pública del despliegue:
+
+```text
+http://44.207.98.248
+```
+
+Arquitectura implementada:
 
 - Una instancia EC2 pequena (`t3.micro` o `t2.micro`).
 - Docker Compose en la instancia.
@@ -333,14 +339,16 @@ Arquitectura propuesta:
 - Base de datos PostgreSQL administrada en RDS.
 - RDS privado, sin exposicion publica; solo acepta trafico desde el security group de EC2.
 - Sin Load Balancer.
-- Elastic IP opcional para mantener una IP publica estable durante la revision.
+- Elastic IP para mantener una IP publica estable durante la revision.
 - CloudFormation realiza el bootstrap inicial: crea EC2, crea RDS, instala Docker, clona el repositorio, construye la imagen, crea el archivo de entorno y levanta la API conectada a RDS.
+- GitHub Actions realiza los redeploys posteriores por SSH hacia EC2.
 
 Archivos relevantes:
 
 ```text
 deployment/aws/cloudformation.yml
 deployment/aws/docker-compose.aws.yml
+deployment/aws/parameters.aws.example.json
 .github/workflows/cd-aws.yml
 medisalud.env.aws.example
 ```
@@ -354,9 +362,25 @@ Riesgos/costos a tener en cuenta:
 - Si se usa SSH desde GitHub Actions, el puerto 22 debe permitir acceso desde los runners de GitHub o configurarse una estrategia mas segura.
 - Despues de la revision del evaluador, eliminare el stack de CloudFormation o detendre los recursos para evitar cargos, jejeje.
 
-Configuracion prevista para habilitar AWS:
+Creacion del stack:
 
-Esta configuracion deja preparado un despliegue adicional en AWS. El despliegue principal ya funcional es Render; AWS queda como alternativa paralela si se decide activarla.
+El stack se crea con AWS CLI usando CloudFormation:
+
+```bash
+aws cloudformation create-stack \
+  --stack-name medisalud-scheduling-aws \
+  --template-body file://deployment/aws/cloudformation.yml \
+  --parameters file://deployment/aws/parameters.aws.json \
+  --region us-east-1
+```
+
+`deployment/aws/parameters.aws.json` contiene valores reales y secretos, por eso no se versiona. El archivo versionado de referencia es:
+
+```text
+deployment/aws/parameters.aws.example.json
+```
+
+Configuracion usada:
 
 1. Crear o seleccionar un Key Pair EC2.
 2. Seleccionar VPC, una subnet publica para EC2 y al menos dos subnets para el DB Subnet Group de RDS.
@@ -402,6 +426,58 @@ MANAGEMENT_ENDPOINTS=health,prometheus
 El workflow `CD AWS` se dispara cuando el workflow `CI` termina exitosamente en `main`. Construye la imagen Docker en GitHub Actions, la copia a EC2 por SSH y reinicia Docker Compose en `/opt/medisalud`. En cada redeploy conserva la misma RDS; solo reemplaza la imagen de la aplicacion.
 
 La primera creacion del stack ya deja la aplicacion desplegada. El workflow `CD AWS` queda para actualizaciones posteriores cuando `main` recibe cambios. Tambien puede ejecutarse manualmente desde GitHub Actions para validar el redeploy end-to-end despues de configurar los secrets.
+
+Validacion del despliegue AWS:
+
+```bash
+curl -i http://44.207.98.248/actuator/health
+curl -I http://44.207.98.248/swagger-ui.html
+```
+
+Prueba funcional contra RDS:
+
+```bash
+curl -i -X POST http://44.207.98.248/api/doctors \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "fullName": "AWS Validation Doctor",
+    "specialty": "Cardiology",
+    "phone": "3001234567",
+    "email": "aws.validation.doctor@medisalud.com"
+  }'
+```
+
+Inspeccion de RDS:
+
+RDS se mantiene privado por seguridad. La pantalla principal de RDS en AWS Console muestra la instancia, no las tablas. Para inspeccionar tablas se usa un cliente SQL mediante tunel SSH por EC2.
+
+Tunel SSH:
+
+```bash
+ssh -i deployment/aws/medisalud-scheduling-key.pem \
+  -L 5433:medisalud-scheduling-aws-medisaluddatabase-7cynrelcynjr.ccn6qwu2mut0.us-east-1.rds.amazonaws.com:5432 \
+  ec2-user@44.207.98.248
+```
+
+Conexion local desde DBeaver u otro cliente SQL:
+
+```text
+Host: localhost
+Port: 5433
+Database: medisalud
+User: medisalud
+Password: valor de DbPassword
+Schema: public
+```
+
+Tablas esperadas:
+
+```text
+appointments
+doctors
+patients
+penalties
+```
 
 ## Endpoints Implementados
 
