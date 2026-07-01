@@ -392,6 +392,18 @@ aws cloudformation create-stack \
 deployment/aws/parameters.aws.example.json
 ```
 
+El archivo local real para variables de runtime AWS puede mantenerse en la raiz como:
+
+```text
+medisalud.env.aws
+```
+
+Este archivo no se versiona porque contiene secretos como `DB_PASS`. Sirve como referencia local para el contenido del secret `AWS_ENV_FILE` y para actualizar manualmente el archivo activo en EC2:
+
+```text
+/opt/medisalud/medisalud.env.aws
+```
+
 Configuracion usada:
 
 1. Crear o seleccionar un Key Pair EC2.
@@ -433,6 +445,24 @@ DB_DIALECT=org.hibernate.dialect.PostgreSQLDialect
 JPA_DDL_AUTO=update
 CORS_ALLOWED_ORIGINS=http://EC2_PUBLIC_DNS_OR_IP
 MANAGEMENT_ENDPOINTS=health,prometheus
+```
+
+Uso de `medisalud.env.aws` en EC2:
+
+- En la creacion inicial del stack, CloudFormation genera `/opt/medisalud/medisalud.env.aws` automaticamente a partir de los parametros del stack. No hay que copiarlo manualmente en ese primer arranque.
+- Se debe actualizar manualmente en EC2 cuando cambie algun valor de runtime: `DB_PASS`, `DB_URL`, `APP_PORT`, `CORS_ALLOWED_ORIGINS`, `JPA_DDL_AUTO` o `MANAGEMENT_ENDPOINTS`.
+- Tambien se debe actualizar si se recrea RDS, cambia el endpoint de base de datos, se rota la contrasena, se ajustan los origenes CORS o el archivo remoto queda desincronizado.
+- Si el cambio debe sobrevivir a futuros redeploys, tambien hay que actualizar el secret `AWS_ENV_FILE` en GitHub con el mismo contenido. El workflow `CD AWS` copia ese secret sobre `/opt/medisalud/medisalud.env.aws` en cada redeploy.
+
+Aplicar manualmente el `.env` local en EC2:
+
+```bash
+scp -i deployment/aws/medisalud-scheduling-key.pem \
+  medisalud.env.aws \
+  ec2-user@44.207.98.248:/opt/medisalud/medisalud.env.aws
+
+ssh -i deployment/aws/medisalud-scheduling-key.pem ec2-user@44.207.98.248 \
+  'chmod 600 /opt/medisalud/medisalud.env.aws && cd /opt/medisalud && docker compose --env-file medisalud.env.aws -f docker-compose.aws.yml up -d'
 ```
 
 El workflow `CD AWS` se dispara cuando el workflow `CI` termina exitosamente en `main`. Construye la imagen Docker en GitHub Actions, la copia a EC2 por SSH y reinicia Docker Compose en `/opt/medisalud`. En cada redeploy conserva la misma RDS; solo reemplaza la imagen de la aplicacion.
